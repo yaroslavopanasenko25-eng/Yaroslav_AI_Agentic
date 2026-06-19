@@ -194,6 +194,8 @@ Open:
 
 - `http://localhost:3000`
 
+Frontend dependencies include both **Recharts** (implemented in current scaffold) and **Plotly** packages (pre-added for advanced geospatial/analytical visualizations in upcoming dashboard iterations).
+
 ### 4) Environment variables (`.env`)
 
 Create `/backend/.env`:
