@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+supabase
+pandas
+numpy
+statsmodels
+requests
+pydantic
+python-dotenv
