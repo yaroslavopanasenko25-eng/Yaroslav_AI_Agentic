@@ -38,6 +38,8 @@ Thumbs.db
 *.cache/
 .parcel-cache/
 .eslintcache/
+.env.production
+!.env.production.example
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 .coverage

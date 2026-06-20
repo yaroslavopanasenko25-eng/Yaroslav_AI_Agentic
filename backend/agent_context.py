@@ -15,10 +15,30 @@ from data_loader import fetch_alerts
 from database import fetch_rows
 from regions_data import build_regions
 
-_SHELTERS_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "alarm-app" / "frontend" / "public" / "shelters.json"
-)
+def _resolve_shelters_path() -> Path | None:
+    settings = get_settings()
+    if settings.shelters_json_path:
+        p = Path(settings.shelters_json_path)
+        if p.exists():
+            return p
+    candidates = [
+        Path(__file__).resolve().parent / "data" / "shelters.json",
+        Path(__file__).resolve().parent.parent / "alarm-app" / "frontend" / "public" / "shelters.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
+
+
+@lru_cache(maxsize=1)
+def _load_shelters() -> List[Dict[str, Any]]:
+    path = _resolve_shelters_path()
+    if not path:
+        return []
+    with path.open(encoding="utf-8") as fh:
+        return json.load(fh)
+
 
 _KYIV_DISTRICTS = [
     "Голосіївський", "Дарницький", "Деснянський", "Дніпровський",
@@ -34,14 +54,6 @@ _ALARM_KEYWORDS = re.compile(
     r"тривог|тревог|alarm|alert|ракет|дрон|шахед|загроз|угроз|де\s+тривог",
     re.IGNORECASE,
 )
-
-
-@lru_cache(maxsize=1)
-def _load_shelters() -> List[Dict[str, Any]]:
-    if not _SHELTERS_PATH.exists():
-        return []
-    with _SHELTERS_PATH.open(encoding="utf-8") as fh:
-        return json.load(fh)
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
