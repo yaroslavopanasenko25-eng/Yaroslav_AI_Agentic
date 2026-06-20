@@ -180,8 +180,8 @@ export default function Analysis() {
       </div>
 
       {/* Intercept rate */}
-      <div className="glass-card" style={{ padding: '14px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div className="glass-card intercept-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             {language === 'uk' ? 'Відсоток перехоплення' : 'Interception Rate'}
           </span>
@@ -201,16 +201,16 @@ export default function Analysis() {
       {/* Charts + table */}
       <div className="analysis-grid">
         {/* Bar: threats by day */}
-        <div className="glass-card">
+        <div className="glass-card chart-card">
           <div className="section-title">{language === 'uk' ? 'Загрози по днях' : 'Threats by Period'}</div>
           <div className="chart-inner">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={barData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={barData} margin={{ top: 8, right: 20, left: -8, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} width={36} />
                 <Tooltip contentStyle={tooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                 <Bar dataKey="missiles"  name={t('missiles')}  fill="#FF453A" radius={[3,3,0,0]} />
                 <Bar dataKey="drones"    name={t('drones')}    fill="#FF9F0A" radius={[3,3,0,0]} />
                 <Bar dataKey="destroyed" name={t('destroyed')} fill="#30D158" radius={[3,3,0,0]} />
@@ -220,16 +220,16 @@ export default function Analysis() {
         </div>
 
         {/* Line: duration + regions + threats */}
-        <div className="glass-card">
+        <div className="glass-card chart-card">
           <div className="section-title">{language === 'uk' ? 'Тривалість, регіони та загрози' : 'Duration, Regions & Threats'}</div>
           <div className="chart-inner">
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={lineData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={lineData} margin={{ top: 8, right: 20, left: -8, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} width={36} />
                 <Tooltip contentStyle={tooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                 <Line
                   type="monotone" dataKey="duration"
                   name={language === 'uk' ? 'Тривалість (хв)' : 'Duration (min)'}

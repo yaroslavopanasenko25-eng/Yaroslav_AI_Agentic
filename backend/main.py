@@ -14,7 +14,7 @@ POST /api/v1/ingest             Trigger manual alert ingestion from alerts.in.ua
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +25,8 @@ from ai_service import forecast as grok_forecast
 from config import get_settings
 from data_loader import fetch_alerts, run_ingestion, transform_alerts
 from database import fetch_rows
+from mock_data import SAFETY_TIPS, generate_mock_history
+from regions_data import build_regions
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -61,6 +63,8 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     history: List[ChatMessage] = Field(default_factory=list)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
 
 
 class ChatResponse(BaseModel):
@@ -88,8 +92,36 @@ def versioned_health() -> Dict[str, Any]:
         "service": "guardianeye-backend",
         "version": "1.0.0",
         "supabase_configured": "your-project" not in cfg.supabase_url,
-        "grok_configured": bool(cfg.grok_api_key) and "your-grok" not in cfg.grok_api_key,
+        "grok_configured": bool(cfg.grok_api_key)
+        and not cfg.grok_api_key.startswith("your-")
+        and cfg.grok_api_key.startswith("xai-"),
         "alerts_configured": bool(cfg.alerts_api_key) and "your-alerts" not in cfg.alerts_api_key,
+    }
+
+
+# ── Shared helpers ────────────────────────────────────────────────────────────
+
+
+def _regions_payload() -> Dict[str, Any]:
+    """Build the region list response (live API or demo fallback)."""
+    try:
+        raw = fetch_alerts()
+        active_ids: set[str] = {
+            str(r.get("location_uid") or r.get("region_id", ""))
+            for r in raw
+        }
+        regions = build_regions(active_ids)
+        source = "live"
+    except RuntimeError as exc:
+        logger.warning("alerts.in.ua unavailable, serving demo regions: %s", exc)
+        regions = build_regions(use_mock=True)
+        source = "demo"
+
+    from datetime import datetime, timezone
+    return {
+        "regions": regions,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "source": source,
     }
 
 
@@ -98,69 +130,9 @@ def versioned_health() -> Dict[str, Any]:
 
 @api.get("/regions", tags=["alarms"])
 def get_regions() -> Dict[str, Any]:
-    """Return current alarm status for every Ukrainian region.
-
-    Falls back to a static mock list when the alerts.in.ua API key is not yet
-    configured, so the frontend map always has data to display.
-    """
-    try:
-        raw = fetch_alerts()
-        active_ids: set[str] = {
-            str(r.get("location_uid") or r.get("region_id", ""))
-            for r in raw
-        }
-        regions = _build_regions(active_ids)
-    except RuntimeError as exc:
-        logger.warning("alerts.in.ua unavailable, serving mock regions: %s", exc)
-        regions = _build_regions(set())
-
-    from datetime import datetime, timezone
-    return {"regions": regions, "updatedAt": datetime.now(timezone.utc).isoformat()}
-
-
-def _build_regions(active_region_ids: set[str]) -> List[Dict[str, str]]:
-    """Build the full 26-region list with statuses derived from live active IDs."""
-    ALL_REGIONS = [
-        ("1",  "vinnytsia",       "Вінницька",         "Vinnytsia"),
-        ("2",  "volyn",           "Волинська",          "Volyn"),
-        ("3",  "dnipro",          "Дніпропетровська",  "Dnipropetrovsk"),
-        ("4",  "donetsk",         "Донецька",           "Donetsk"),
-        ("5",  "zhytomyr",        "Житомирська",        "Zhytomyr"),
-        ("6",  "zakarpattia",     "Закарпатська",       "Zakarpattia"),
-        ("7",  "zaporizhzhia",    "Запорізька",         "Zaporizhzhia"),
-        ("8",  "ivano-frankivsk", "Івано-Франківська",  "Ivano-Frankivsk"),
-        ("9",  "kyiv-oblast",     "Київська",           "Kyiv Oblast"),
-        ("10", "kirovohrad",      "Кіровоградська",    "Kirovohrad"),
-        ("11", "luhansk",         "Луганська",          "Luhansk"),
-        ("12", "lviv",            "Львівська",          "Lviv"),
-        ("13", "mykolaiv",        "Миколаївська",       "Mykolaiv"),
-        ("14", "odesa",           "Одеська",            "Odesa"),
-        ("15", "poltava",         "Полтавська",         "Poltava"),
-        ("16", "rivne",           "Рівненська",         "Rivne"),
-        ("17", "sumy",            "Сумська",            "Sumy"),
-        ("18", "ternopil",        "Тернопільська",      "Ternopil"),
-        ("19", "kharkiv",         "Харківська",         "Kharkiv"),
-        ("20", "kherson",         "Херсонська",         "Kherson"),
-        ("21", "khmelnytskyi",    "Хмельницька",        "Khmelnytskyi"),
-        ("22", "cherkasy",        "Черкаська",          "Cherkasy"),
-        ("23", "chernivtsi",      "Чернівецька",        "Chernivtsi"),
-        ("24", "chernihiv",       "Чернігівська",       "Chernihiv"),
-        ("25", "kyiv-city",       "м. Київ",            "Kyiv City"),
-        ("26", "crimea",          "АР Крим",            "AR Crimea"),
-    ]
-    OCCUPIED = {"luhansk", "donetsk", "crimea"}
-
-    result = []
-    for uid, slug, name_uk, name_en in ALL_REGIONS:
-        if slug in OCCUPIED:
-            status = "occupied"
-        elif uid in active_region_ids or slug in active_region_ids:
-            status = "active"
-        else:
-            status = "clear"
-        result.append({"id": slug, "nameUk": name_uk, "nameEn": name_en, "status": status})
-
-    return result
+    """Return current alarm status for every Ukrainian region."""
+    payload = _regions_payload()
+    return {"regions": payload["regions"], "updatedAt": payload["updatedAt"]}
 
 
 # ── Alarm history (Supabase with mock fallback) ───────────────────────────────
@@ -168,16 +140,16 @@ def _build_regions(active_region_ids: set[str]) -> List[Dict[str, str]]:
 
 @api.get("/alarms/history", tags=["alarms"])
 def get_alarm_history(limit: int = 100) -> Dict[str, Any]:
-    """Return historical alert records from Supabase.
-
-    Falls back to an empty list when Supabase is not yet configured.
-    """
+    """Return historical alert records from Supabase, or demo data as fallback."""
     try:
         rows = fetch_rows("alerts", limit=limit, order_col="start_time", ascending=False)
-        return {"history": rows, "count": len(rows), "source": "supabase"}
+        if rows:
+            return {"history": rows, "count": len(rows), "source": "supabase"}
     except RuntimeError as exc:
-        logger.warning("Supabase unavailable, returning empty history: %s", exc)
-        return {"history": [], "count": 0, "source": "unavailable"}
+        logger.warning("Supabase unavailable, serving demo history: %s", exc)
+
+    demo = generate_mock_history()
+    return {"history": demo, "count": len(demo), "source": "demo"}
 
 
 # ── Manual ingestion trigger ──────────────────────────────────────────────────
@@ -201,7 +173,7 @@ def ai_chat(body: ChatRequest) -> ChatResponse:
     """Forward a user message to the Grok safety assistant and return the reply."""
     try:
         history = [{"role": m.role, "content": m.content} for m in body.history]
-        reply = grok_chat(body.message, history=history or None)
+        reply = grok_chat(body.message, history=history or None, lat=body.lat, lng=body.lng)
         return ChatResponse(reply=reply)
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -232,6 +204,29 @@ def ai_forecast(body: ForecastRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-# ── Mount versioned router ────────────────────────────────────────────────────
+# ── Legacy /api routes (frontend compatibility) ─────────────────────────────
+
+legacy = APIRouter(prefix="/api")
+
+
+@legacy.get("/regions", tags=["legacy"])
+def legacy_regions() -> Dict[str, Any]:
+    payload = _regions_payload()
+    return {"regions": payload["regions"], "updatedAt": payload["updatedAt"]}
+
+
+@legacy.get("/alarms/history", tags=["legacy"])
+def legacy_history() -> Dict[str, Any]:
+    result = get_alarm_history()
+    return {"history": result["history"]}
+
+
+@legacy.get("/safety-tips", tags=["legacy"])
+def legacy_safety_tips() -> Dict[str, Any]:
+    return SAFETY_TIPS
+
+
+# ── Mount routers ─────────────────────────────────────────────────────────────
 
 app.include_router(api)
+app.include_router(legacy)

@@ -2,13 +2,12 @@
 echo Starting Ukraine Alarm Shield...
 echo.
 
-:: Start backend
-echo [1/2] Starting backend on port 3001...
-cd backend
-start "Backend" cmd /c "npm install && npm start"
-cd ..
+:: Start Python backend (all API routes)
+echo [1/2] Starting Python backend on port 8080...
+cd ..\backend
+start "Python Backend" cmd /c "pip install -r requirements.txt -q && uvicorn main:app --host 127.0.0.1 --port 8080 --reload"
+cd ..\alarm-app
 
-:: Wait a moment for backend to start
 timeout /t 3 /nobreak >nul
 
 :: Start frontend
@@ -18,7 +17,7 @@ start "Frontend" cmd /c "npm install && npm run dev"
 cd ..
 
 echo.
-echo  Backend:  http://localhost:3001
-echo  Frontend: http://localhost:5173
+echo  Python API: http://localhost:8080
+echo  Frontend:   http://localhost:5173
 echo.
 pause

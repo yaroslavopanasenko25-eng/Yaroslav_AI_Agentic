@@ -8,47 +8,18 @@ interface Message {
   text: string;
 }
 
-const BOT_UK = [
-  'Якщо оголошено тривогу — негайно спускайтеся до укриття або підвалу. Уникайте вікон.',
-  'Найближче укриття — у вкладці «Безпека» → карта укриттів.',
-  'Тривожна валіза: документи, вода (3 л/добу), ліки, ліхтарик, заряджений телефон.',
-  'Під час атаки — подалі від вікон і зовнішніх стін, ляжте на підлогу.',
-  'Після відбою зачекайте 15–20 хвилин, перш ніж виходити.',
-  'Підпишіться на офіційний Telegram-канал своєї ОВА.',
-  'Дзвоніть 112 в надзвичайних ситуаціях, 101 — пожежна, 103 — швидка.',
-  'Запасіться водою на 3–5 днів і консервами. Тримайте павербанк зарядженим.',
-];
-const BOT_EN = [
-  'If an alarm sounds, immediately go to a shelter or basement. Avoid windows.',
-  'Find the nearest shelter in the "Safety" tab → shelter map.',
-  'Emergency bag: documents, water (3L/day), medicines, flashlight, charged phone.',
-  'During an attack, stay away from windows and outer walls, lie flat on the floor.',
-  'After the all-clear, wait 15–20 minutes before going outside.',
-  'Subscribe to your regional official Telegram channel for timely alerts.',
-  'Call 112 for emergencies, 101 for fire, 103 for ambulance.',
-  'Store water for 3–5 days and canned food. Keep your powerbank charged.',
-];
-
-// ── Grok logo (xAI) ───────────────────────────────────────────────────────────
+// ── Grok logo (circle + lightning bolt) ───────────────────────────────────────
 const GrokIcon = () => (
   <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-    {/* Grok's distinctive multi-arm geometric shape */}
+    <circle cx="16" cy="16" r="9" stroke="white" strokeWidth="2.2" fill="none" opacity="0.95" />
     <path
-      d="M16 2 L18.5 13.5 L30 16 L18.5 18.5 L16 30 L13.5 18.5 L2 16 L13.5 13.5 Z"
-      fill="white"
-      opacity="0.95"
+      d="M19.5 9.5 L14.5 16 L17 16 L12.5 22.5"
+      stroke="white"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
     />
-    <path
-      d="M16 7 L17.6 13.4 L24 16 L17.6 18.6 L16 25 L14.4 18.6 L8 16 L14.4 13.4 Z"
-      fill="url(#grokGrad)"
-      opacity="0.4"
-    />
-    <defs>
-      <radialGradient id="grokGrad" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9"/>
-        <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.3"/>
-      </radialGradient>
-    </defs>
   </svg>
 );
 
@@ -72,8 +43,19 @@ export default function AIAgent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!open || userLocation) return;
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { timeout: 6000, maximumAge: 120_000 },
+    );
+  }, [open, userLocation]);
 
   useEffect(() => {
     if (open && messages.length === 0) {
@@ -97,19 +79,39 @@ export default function AIAgent() {
     setMessages(prev => [...prev, userMsg]);
     setTyping(true);
 
+    const history = messages
+      .filter(m => m.id !== 'w')
+      .slice(-10)
+      .map(m => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }));
+
     try {
       const res = await fetch('/api/v1/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+          message: text,
+          history,
+          ...(userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : {}),
+        }),
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const detail = typeof err.detail === 'string' ? err.detail : 'Grok API unavailable';
+        throw new Error(detail);
+      }
+
       const data = await res.json();
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', text: data.reply }]);
-    } catch {
-      await new Promise(r => setTimeout(r, 700 + Math.random() * 600));
-      const pool = language === 'uk' ? BOT_UK : BOT_EN;
-      const reply = pool[Math.floor(Math.random() * pool.length)];
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', text: reply }]);
+    } catch (err) {
+      const offline = language === 'uk'
+        ? 'Не вдалося зʼєднатися з Grok. Переконайтеся, що Python-бекенд запущено на порту 8080.'
+        : 'Could not reach Grok. Make sure the Python backend is running on port 8080.';
+      const msg = err instanceof Error && err.message !== 'Failed to fetch' ? err.message : offline;
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'bot', text: msg }]);
     } finally {
       setTyping(false);
     }
