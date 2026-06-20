@@ -511,6 +511,12 @@ html, body {
   background: var(--bg-secondary) !important;
 }
 
+/* Lift zoom +/- above the Grok FAB (bottom-right) */
+.shelter-map-wrap .leaflet-bottom.leaflet-right {
+  margin-bottom: 78px;
+  margin-right: 6px;
+}
+
 /* Tile switcher */
 .tile-switcher {
   display: flex;

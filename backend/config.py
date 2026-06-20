@@ -68,11 +68,23 @@ class Settings(BaseSettings):
 
     # ── General ──────────────────────────────────────────────────────────────
     debug: bool = Field(default=False, description="Enable debug logging")
+    port: int = Field(default=8080, ge=1, le=65535, description="Server port (Docker/DO)")
+    shelters_json_path: str | None = Field(
+        default=None,
+        description="Override path to shelters.json (Docker production)",
+    )
     request_timeout_seconds: int = Field(
         default=20,
         ge=1,
         description="Default outbound HTTP request timeout in seconds",
     )
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def _parse_allowed_origins(cls, value: object) -> List[str]:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value  # type: ignore[return-value]
 
     @field_validator("supabase_url")
     @classmethod
