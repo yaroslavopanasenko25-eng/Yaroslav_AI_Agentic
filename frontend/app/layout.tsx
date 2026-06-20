@@ -4,6 +4,10 @@
  */
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { SettingsProvider } from "../components/SettingsProvider";
+import Navigation from "../components/Navigation";
+import AIAgentIcon from "../components/AIAgentIcon";
+import "./globals.css"; // Ensure globals are imported if there are any
 
 export const metadata: Metadata = {
   title: "GuardianEye: Ukraine Air Raid Defense Analytics",
@@ -16,22 +20,17 @@ type RootLayoutProps = {
 };
 
 export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
-  try {
-    return (
-      <html lang="en" className="dark">
-        <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
-          <main className="mx-auto w-full max-w-7xl px-6 py-8">{children}</main>
-        </body>
-      </html>
-    );
-  } catch (error) {
-    console.error("Root layout rendering failed", error);
-    return (
-      <html lang="en" className="dark">
-        <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
-          <main className="mx-auto w-full max-w-7xl px-6 py-8">Unable to render GuardianEye layout.</main>
-        </body>
-      </html>
-    );
-  }
+  return (
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased transition-colors duration-300">
+        <SettingsProvider>
+          <Navigation />
+          <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8">
+            {children}
+          </main>
+          <AIAgentIcon />
+        </SettingsProvider>
+      </body>
+    </html>
+  );
 }

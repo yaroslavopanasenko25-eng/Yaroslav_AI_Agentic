@@ -1,88 +1,131 @@
 "use client";
 
-/**
- * Operator settings panel for UI preferences.
- * Supports dark/light preference toggling and English/Ukrainian language selection.
- */
-import { useState } from "react";
-
-type ThemeMode = "dark" | "light";
-type LanguageCode = "en" | "uk";
+import { useSettings } from "./SettingsProvider";
+import { Moon, Sun, MonitorSmartphone, Type, Globe, Accessibility } from "lucide-react";
 
 export default function Settings(): JSX.Element {
-  const [theme, setTheme] = useState<ThemeMode>("dark");
-  const [language, setLanguage] = useState<LanguageCode>("en");
-  const [errorMessage, setErrorMessage] = useState<string>("");
+  const { 
+    theme, setTheme, 
+    fontSize, setFontSize, 
+    language, setLanguage, 
+    dyslexiaMode, setDyslexiaMode 
+  } = useSettings();
 
-  const handleThemeChange = (nextTheme: ThemeMode): void => {
-    try {
-      setTheme(nextTheme);
-      setErrorMessage("");
-    } catch (error) {
-      console.error("Theme update failed", error);
-      setErrorMessage("Unable to update theme right now.");
-    }
-  };
+  const isUk = language === "uk";
 
-  const handleLanguageChange = (nextLanguage: LanguageCode): void => {
-    try {
-      setLanguage(nextLanguage);
-      setErrorMessage("");
-    } catch (error) {
-      console.error("Language update failed", error);
-      setErrorMessage("Unable to update language right now.");
-    }
-  };
+  return (
+    <aside className="rounded-[2rem] border border-white/20 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-2xl h-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-700">
+      <div className="flex items-center gap-3">
+        <MonitorSmartphone className="h-6 w-6 text-indigo-500 dark:text-emerald-400" />
+        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+          {isUk ? "Налаштування" : "Settings"}
+        </h2>
+      </div>
 
-  try {
-    return (
-      <aside className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-md shadow-black/30">
-        <h2 className="text-xl font-semibold text-slate-100">Settings</h2>
-        <p className="mt-3 text-sm text-slate-300">
-          Configure dashboard preferences for analysts and operators.
-        </p>
-
-        <div className="mt-6 space-y-5">
-          <div>
-            <label htmlFor="theme" className="mb-2 block text-sm font-medium text-slate-200">
-              Theme
-            </label>
-            <select
-              id="theme"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-              value={theme}
-              onChange={(event) => handleThemeChange(event.target.value as ThemeMode)}
+      <div className="space-y-6">
+        {/* Theme Toggle - iOS Control Center Style */}
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300">
+            {isUk ? "Тема оформлення" : "Appearance"}
+          </label>
+          <div className="flex p-1 rounded-2xl bg-slate-200/50 dark:bg-slate-800/50 backdrop-blur-md">
+            <button
+              onClick={() => setTheme("light")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                theme === "light" 
+                  ? "bg-white text-indigo-600 shadow-md" 
+                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
             >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="language" className="mb-2 block text-sm font-medium text-slate-200">
-              Language
-            </label>
-            <select
-              id="language"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-              value={language}
-              onChange={(event) => handleLanguageChange(event.target.value as LanguageCode)}
+              <Sun className="h-4 w-4" /> Light
+            </button>
+            <button
+              onClick={() => setTheme("dark")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                theme === "dark" 
+                  ? "bg-slate-700 text-emerald-400 shadow-md" 
+                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
             >
-              <option value="en">English</option>
-              <option value="uk">Українська</option>
-            </select>
+              <Moon className="h-4 w-4" /> Dark
+            </button>
           </div>
-
-          {errorMessage ? <p className="text-sm text-rose-400">{errorMessage}</p> : null}
         </div>
-      </aside>
-    );
-  } catch (error) {
-    console.error("Settings panel rendering failed", error);
-    return (
-      <aside className="rounded-2xl border border-rose-700/50 bg-rose-900/20 p-6 text-rose-200">
-        Settings panel is temporarily unavailable.
-      </aside>
-    );
-  }
+
+        {/* Language Selection */}
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-2"><Globe className="h-4 w-4"/> {isUk ? "Мова" : "Language"}</div>
+          </label>
+          <div className="flex p-1 rounded-2xl bg-slate-200/50 dark:bg-slate-800/50 backdrop-blur-md">
+            <button
+              onClick={() => setLanguage("en")}
+              className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                language === "en" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-emerald-400 shadow-md" : "text-slate-500"
+              }`}
+            >
+              English
+            </button>
+            <button
+              onClick={() => setLanguage("uk")}
+              className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                language === "uk" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-emerald-400 shadow-md" : "text-slate-500"
+              }`}
+            >
+              Українська
+            </button>
+          </div>
+        </div>
+
+        {/* Typography Controls */}
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-2"><Type className="h-4 w-4"/> {isUk ? "Розмір тексту" : "Typography Base"}</div>
+          </label>
+          <div className="flex gap-2">
+            {["small", "medium", "large"].map((s) => (
+              <button
+                key={s}
+                onClick={() => setFontSize(s as any)}
+                className={`flex-1 py-3 rounded-2xl border transition-all duration-300 capitalize text-sm font-medium ${
+                  fontSize === s 
+                    ? "border-indigo-500 dark:border-emerald-500 bg-indigo-50 dark:bg-emerald-900/20 text-indigo-700 dark:text-emerald-400" 
+                    : "border-slate-200 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
+                }`}
+              >
+                {s === "small" ? "A" : s === "medium" ? "Text" : "Large"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Accessibility Mode Segment */}
+        <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-white/50 dark:bg-slate-800/30 backdrop-blur-sm border border-slate-100 dark:border-slate-700/50">
+            <div>
+              <p className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+                <Accessibility className="h-4 w-4 text-indigo-500 dark:text-emerald-400" />
+                {isUk ? "Режим Дислексії" : "Dyslexia Reader"}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {isUk ? "Збільшений інтервал" : "Wider tracking & sans fonts"}
+              </p>
+            </div>
+            <button
+              onClick={() => setDyslexiaMode(!dyslexiaMode)}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-500 shadow-inner ${
+                dyslexiaMode ? "bg-indigo-500 dark:bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-500 ${
+                  dyslexiaMode ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
 }
