@@ -3,21 +3,28 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Iterable, List
+from datetime import datetime, timezone
+from typing import Any, Dict, Iterable, List, Optional
 
 import requests
 
+from agent_context import build_agent_context
 from config import get_settings
 
-# System prompt for the safety-chat assistant (used by the frontend AI Agent)
+# System prompt — agent must answer from injected live data, never deflect to external apps
 _CHAT_SYSTEM_PROMPT = (
-    "You are a safety assistant for Ukraine air raid alerts. "
-    "Answer questions about air alarms, shelters, safety rules, and emergency procedures. "
-    "Keep answers concise and practical. "
-    "When relevant, remind users to call 112 for emergencies. "
-    "Reply in the same language the user used."
+    "You are GuardianEye AI — the built-in safety assistant of this Ukraine air-raid alert app.\n"
+    "On every request you receive LIVE APP DATA below. Answer DIRECTLY from that data.\n"
+    "Rules:\n"
+    "- NEVER say you lack real-time information when live data is provided below.\n"
+    "- NEVER redirect users to external apps or websites (Повітряна тривога, air-alarms.in.ua, etc.) "
+    "— you ARE the app assistant and the data below IS your source.\n"
+    "- When asked about alarms: list the specific regions and their status from the data.\n"
+    "- When asked about shelters: give specific addresses, districts, and types from the data.\n"
+    "- Be concise, practical, and empathetic. Reply in the same language the user uses.\n"
+    "- If data source is demo/mock, mention it briefly but still answer with the listed data.\n"
+    "- For emergencies remind to call 112."
 )
-
 # System prompt for the analytical forecasting feature
 _FORECAST_SYSTEM_PROMPT = (
     "You are a defense analytics forecaster for Ukraine air raid risk. "
@@ -34,9 +41,9 @@ def _post_to_grok(messages: List[Dict[str, str]], temperature: float = 0.3) -> s
     """
     settings = get_settings()
 
-    if not settings.grok_api_key or "your-grok" in settings.grok_api_key:
+    if not settings.grok_api_key or settings.grok_api_key.startswith("your-"):
         raise RuntimeError(
-            "Grok API key is not configured. Set GROK_API_KEY in your .env file."
+            "Grok API key is not configured. Set XAI_API_KEY or GROK_API_KEY in your .env file."
         )
 
     headers = {
@@ -59,29 +66,52 @@ def _post_to_grok(messages: List[Dict[str, str]], temperature: float = 0.3) -> s
         response.raise_for_status()
         data = response.json()
         return data["choices"][0]["message"]["content"]
+    except requests.HTTPError as exc:
+        detail = ""
+        if exc.response is not None:
+            try:
+                detail = exc.response.json().get("error", {}).get("message", "")
+            except Exception:
+                detail = exc.response.text[:200]
+        msg = detail or str(exc)
+        raise RuntimeError(f"Grok API error: {msg}") from exc
     except (requests.RequestException, KeyError, IndexError) as exc:
         raise RuntimeError("Grok API request failed.") from exc
 
 
 # ── Public interface ──────────────────────────────────────────────────────────
 
-def chat(user_message: str, history: List[Dict[str, str]] | None = None) -> str:
+def chat(
+    user_message: str,
+    history: List[Dict[str, str]] | None = None,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+) -> str:
     """Send a user message to the safety-chat assistant and return the reply.
 
     Args:
         user_message: The text typed by the user in the AI Agent window.
         history:      Optional list of previous ``{"role": ..., "content": ...}``
                       messages to maintain conversational context.
+        lat/lng:      Optional user coordinates for nearest-shelter queries.
 
     Returns:
         The assistant reply as a plain string.
     """
-    messages: List[Dict[str, str]] = [{"role": "system", "content": _CHAT_SYSTEM_PROMPT}]
+    context = build_agent_context(user_message, lat=lat, lng=lng)
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    system_content = (
+        f"{_CHAT_SYSTEM_PROMPT}\n\n"
+        f"=== LIVE APP DATA ({timestamp}) ===\n"
+        f"{context}\n"
+        f"=== END LIVE APP DATA ==="
+    )
+
+    messages: List[Dict[str, str]] = [{"role": "system", "content": system_content}]
     if history:
         messages.extend(history)
     messages.append({"role": "user", "content": user_message})
-    return _post_to_grok(messages, temperature=0.4)
-
+    return _post_to_grok(messages, temperature=0.3)
 
 def forecast(historical_rows: Iterable[Dict[str, Any]], max_rows: int = 200) -> Dict[str, Any]:
     """Request a threat forecast from Grok using historical alert data.

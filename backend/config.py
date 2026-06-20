@@ -7,17 +7,20 @@ from this file — nothing else calls ``os.getenv`` directly.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import List
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+
+_ENV_FILE = Path(__file__).resolve().parent / ".env"
 
 
 class Settings(BaseSettings):
     """Application settings resolved from the .env file or the process environment."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -28,14 +31,26 @@ class Settings(BaseSettings):
     supabase_key: str = Field(..., description="Supabase service-role or anon key")
 
     # ── Grok (xAI) ───────────────────────────────────────────────────────────
-    grok_api_key: str = Field(..., description="xAI Grok API key")
+    # Accepts both GROK_* and XAI_* env names (xAI console uses XAI_ prefix).
+    grok_api_key: str = Field(
+        ...,
+        validation_alias=AliasChoices("GROK_API_KEY", "XAI_API_KEY"),
+        description="xAI Grok API key",
+    )
     grok_api_url: str = Field(
         default="https://api.x.ai/v1/chat/completions",
+        validation_alias=AliasChoices("GROK_API_URL", "XAI_API_URL"),
         description="Grok chat completions endpoint",
     )
     grok_model: str = Field(
         default="grok-3-mini",
+        validation_alias=AliasChoices("GROK_MODEL", "XAI_MODEL"),
         description="Grok model identifier",
+    )
+    xai_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("XAI_BASE_URL", "GROK_BASE_URL"),
+        description="Optional xAI base URL; /chat/completions is appended automatically",
     )
 
     # ── alerts.in.ua ─────────────────────────────────────────────────────────
@@ -72,6 +87,28 @@ class Settings(BaseSettings):
         if not value.startswith("https://"):
             raise ValueError("GROK_API_URL must start with https://")
         return value
+
+    @model_validator(mode="after")
+    def _normalize_xai_settings(self) -> "Settings":
+        """Build the completions URL from XAI_BASE_URL when only a base is provided."""
+        if self.xai_base_url:
+            base = self.xai_base_url.rstrip("/")
+            default_url = "https://api.x.ai/v1/chat/completions"
+            if self.grok_api_url == default_url or not self.grok_api_url.endswith("/chat/completions"):
+                object.__setattr__(self, "grok_api_url", f"{base}/chat/completions")
+        return self
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Prefer .env file over stale OS-level placeholders (e.g. GROK_API_KEY=your-grok-api-key).
+        return init_settings, dotenv_settings, env_settings, file_secret_settings
 
 
 @lru_cache(maxsize=1)
