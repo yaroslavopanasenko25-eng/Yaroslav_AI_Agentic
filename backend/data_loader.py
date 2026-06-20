@@ -1,78 +1,86 @@
-"""Data loader scaffold for ingesting Ukraine alert data into Supabase."""
+"""Alert data ingestion: fetches from alerts.in.ua and upserts into Supabase."""
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
 
-from database import get_supabase_client
-
-ALERTS_API_URL: str = os.getenv("ALERTS_API_URL", "https://api.alerts.in.ua/v1/alerts/active.json")
-REQUEST_TIMEOUT_SECONDS: int = 15
+from config import get_settings
+from database import upsert_rows
 
 
-def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
-    """Parse an ISO8601 datetime string into a timezone-aware datetime object."""
+def _parse_iso(value: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO-8601 string into a timezone-aware datetime, or return None."""
     if not value:
         return None
-
     try:
-        normalized_value: str = value.replace("Z", "+00:00")
-        parsed: datetime = datetime.fromisoformat(normalized_value)
-        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        normalised = value.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalised)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except (ValueError, TypeError):
         return None
 
 
-def _compute_duration_minutes(start_time: Optional[datetime], end_time: Optional[datetime]) -> Optional[int]:
-    """Compute alert duration in minutes from start and end timestamps."""
-    if not start_time:
+def _duration_minutes(start: Optional[datetime], end: Optional[datetime]) -> Optional[int]:
+    if not start:
         return None
-
-    end: datetime = end_time or datetime.now(timezone.utc)
-    total_minutes: int = int((end - start_time).total_seconds() // 60)
-    return max(total_minutes, 0)
+    finish = end or datetime.now(timezone.utc)
+    return max(0, int((finish - start).total_seconds() // 60))
 
 
 def fetch_alerts() -> List[Dict[str, Any]]:
-    """Fetch raw alert payloads from alerts-in-ua API endpoint."""
+    """Fetch active alerts from alerts.in.ua using the configured API key.
+
+    The API requires the token in an ``X-API-Key`` header.
+    """
+    settings = get_settings()
+
+    if not settings.alerts_api_key or "your-alerts" in settings.alerts_api_key:
+        raise RuntimeError(
+            "alerts.in.ua API key is not configured. "
+            "Set ALERTS_API_KEY in your .env file."
+        )
+
+    headers = {"X-API-Key": settings.alerts_api_key}
+
     try:
-        response: requests.Response = requests.get(ALERTS_API_URL, timeout=REQUEST_TIMEOUT_SECONDS)
+        response = requests.get(
+            settings.alerts_api_url,
+            headers=headers,
+            timeout=settings.request_timeout_seconds,
+        )
         response.raise_for_status()
         payload: Any = response.json()
     except requests.RequestException as exc:
-        raise RuntimeError("Failed to fetch alert data from external API.") from exc
+        raise RuntimeError("Failed to fetch alerts from alerts.in.ua.") from exc
 
-    if isinstance(payload, dict):
-        alerts: Any = payload.get("alerts", [])
-    else:
-        alerts = payload
-
+    alerts: Any = payload.get("alerts", payload) if isinstance(payload, dict) else payload
     if not isinstance(alerts, list):
-        raise RuntimeError("Unexpected alerts payload format: expected list.")
+        raise RuntimeError("Unexpected response format from alerts.in.ua.")
 
     return [item for item in alerts if isinstance(item, dict)]
 
 
-def transform_alerts(raw_alerts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Transform external alert payloads into database-ready records."""
+def transform_alerts(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalise raw API payloads into Supabase-ready records."""
     records: List[Dict[str, Any]] = []
 
-    for item in raw_alerts:
-        start_dt: Optional[datetime] = _parse_iso_datetime(item.get("start_time"))
-        end_dt: Optional[datetime] = _parse_iso_datetime(item.get("end_time"))
+    for item in raw:
+        start_dt = _parse_iso(item.get("started_at") or item.get("start_time"))
+        end_dt = _parse_iso(item.get("finished_at") or item.get("end_time"))
 
         record: Dict[str, Any] = {
             "id": item.get("id"),
+            "region_id": item.get("location_uid") or item.get("region_id"),
+            "region": item.get("location_title") or item.get("region", "unknown"),
+            "alert_type": item.get("alert_type") or item.get("threat_type", "unknown"),
             "start_time": start_dt.isoformat() if start_dt else None,
             "end_time": end_dt.isoformat() if end_dt else None,
-            "duration": _compute_duration_minutes(start_dt, end_dt),
-            "region": item.get("region", "unknown"),
-            "threat_type": item.get("threat_type", "unknown"),
-            "risk_level": item.get("risk_level", "medium"),
+            "duration_minutes": _duration_minutes(start_dt, end_dt),
+            "is_active": end_dt is None,
+            "raw": item,
         }
 
         if record["id"] is not None:
@@ -81,29 +89,17 @@ def transform_alerts(raw_alerts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return records
 
 
-def upsert_alerts(records: List[Dict[str, Any]]) -> None:
-    """Upsert transformed alert records into the Supabase `alerts` table."""
-    if not records:
-        return
-
-    try:
-        supabase_client = get_supabase_client()
-        supabase_client.table("alerts").upsert(records).execute()
-    except Exception as exc:  # pragma: no cover - external DB failure
-        raise RuntimeError("Failed to upsert alert records into Supabase.") from exc
-
-
-def run_data_loader() -> int:
-    """Run complete ingestion flow and return number of upserted records."""
-    raw_alerts: List[Dict[str, Any]] = fetch_alerts()
-    transformed: List[Dict[str, Any]] = transform_alerts(raw_alerts)
-    upsert_alerts(transformed)
-    return len(transformed)
+def run_ingestion() -> int:
+    """Fetch → transform → upsert.  Returns the number of records processed."""
+    raw = fetch_alerts()
+    records = transform_alerts(raw)
+    upsert_rows("alerts", records)
+    return len(records)
 
 
 if __name__ == "__main__":
     try:
-        loaded_count: int = run_data_loader()
-        print(f"Successfully processed and upserted {loaded_count} alert records.")
+        n = run_ingestion()
+        print(f"Ingested {n} alert records.")
     except Exception as exc:
-        print(f"Data loader execution failed: {exc}")
+        print(f"Ingestion failed: {exc}")
