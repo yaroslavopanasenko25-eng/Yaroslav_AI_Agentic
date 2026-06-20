@@ -10,8 +10,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import requests
-
 from config import get_settings
 from data_loader import fetch_alerts
 from database import fetch_rows
@@ -55,15 +53,6 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return r * 2 * math.asin(math.sqrt(a))
 
 
-def _fetch_regions_from_app_mock() -> Optional[List[Dict[str, str]]]:
-    try:
-        resp = requests.get("http://localhost:3001/api/regions", timeout=2)
-        resp.raise_for_status()
-        return resp.json().get("regions", [])
-    except requests.RequestException:
-        return None
-
-
 def _get_live_regions() -> tuple[List[Dict[str, str]], str]:
     """Return (regions, source_label)."""
     settings = get_settings()
@@ -79,11 +68,7 @@ def _get_live_regions() -> tuple[List[Dict[str, str]], str]:
         except RuntimeError:
             pass
 
-    mock = _fetch_regions_from_app_mock()
-    if mock:
-        return mock, "app dashboard (live mock server)"
-
-    return build_regions(use_mock=True), "app dashboard (cached demo data)"
+    return build_regions(use_mock=True), "app dashboard (demo data)"
 
 
 def _format_alarm_section() -> str:
