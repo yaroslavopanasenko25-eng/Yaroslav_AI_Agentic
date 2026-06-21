@@ -1,0 +1,74 @@
+{
+  "chunks": [
+    {
+      "id": "dispatch-active-alarm",
+      "category": "dispatcher",
+      "tags": ["тривога", "alarm", "active", "небезпека", "зараз", "now", "evacuate"],
+      "content_uk": "АКТИВНА ТРИВОГА — протокол диспетчера:\n1. Негайно припиніть роботу біля вікон, відкритих просторів.\n2. Візьміть телефон, документи, воду — якщо встигаєте за 30 сек.\n3. Рухайтесь до найближчого укриття (метро, підвал, бомбосховище) — не ліфтом.\n4. У сховищі: сідайте подалі від дверей, уникайте телефонних дзвінків без потреби.\n5. Не виходьте до офіційного відбою + 15–20 хв запасу.\n6. Поранених/загрозу життю — 112; пожежа — 101; швидка — 103.",
+      "content_en": "ACTIVE ALARM — dispatcher protocol:\n1. Immediately leave windows and open areas.\n2. Take phone, ID, water if you can in ~30 seconds.\n3. Move to nearest shelter (metro, basement, bomb shelter) — no elevators.\n4. Inside: sit away from doors; avoid unnecessary phone use.\n5. Do not leave until official all-clear + 15–20 min buffer.\n6. Life-threatening injury — 112; fire — 101; ambulance — 103."
+    },
+    {
+      "id": "dispatch-partial-warning",
+      "category": "dispatcher",
+      "tags": ["часткова", "warning", "partial", "попередження", "загроза"],
+      "content_uk": "ЧАСТКОВА ТРИВОГА / ПОПЕРЕДЖЕННЯ:\n1. Залишайтесь у приміщенні, підготуйте маршрут до укриття.\n2. Перевірте тривожну валізу, заряд телефону, ліхтарик.\n3. Повідомте близьких про своє місцезнаходження.\n4. Уникайте поїздок і відкритих просторів до зміни статусу.\n5. Слідкуйте за оновленнями в додатку — статус може перейти в повну тривогу.",
+      "content_en": "PARTIAL ALERT / WARNING:\n1. Stay indoors; prepare route to shelter.\n2. Check go-bag, phone charge, flashlight.\n3. Tell contacts your location.\n4. Avoid travel and open areas until status changes.\n5. Monitor app updates — status may escalate to full alarm."
+    },
+    {
+      "id": "dispatch-all-clear",
+      "category": "dispatcher",
+      "tags": ["відбій", "clear", "спокійно", "after", "після"],
+      "content_uk": "ПІСЛЯ ВІДБОЮ:\n1. Зачекайте 15–20 хвилин перед виходом з укриття.\n2. Огляньте приміщення на пошкодження, уникайте підозрілих предметів.\n3. Перевірте близьких і сусідів, особливо літніх людей.\n4. При виявленні уламків/пожежі — 101 або 112.\n5. Не наближайтесь до місць падіння без дозволу служб.",
+      "content_en": "AFTER ALL-CLEAR:\n1. Wait 15–20 minutes before leaving shelter.\n2. Check premises for damage; avoid suspicious objects.\n3. Check on relatives and neighbors, especially elderly.\n4. Debris or fire — call 101 or 112.\n5. Do not approach impact sites without emergency services clearance."
+    },
+    {
+      "id": "dispatch-emergency-112",
+      "category": "emergency",
+      "tags": ["112", "екстр", "emergency", "поранен", "injured", "допомог", "help", "пожеж", "fire"],
+      "content_uk": "ЕКСТРЕНІ СЛУЖБИ УКРАЇНИ:\n• 112 — єдиний номер екстреної допомоги (поліція, медики, ДСНС).\n• 101 — пожежна охорона / ДСНС.\n• 103 — швидка медична допомога.\n• 104 — газова служба.\nПри дзвінку: назвіть адресу/орієнтир, кількість постраждалих, що сталося, не кладіть трубку першим.",
+      "content_en": "UKRAINE EMERGENCY SERVICES:\n• 112 — unified emergency (police, medical, State Emergency Service).\n• 101 — fire / State Emergency Service.\n• 103 — ambulance.\n• 104 — gas service.\nWhen calling: state address/landmark, number of casualties, what happened; do not hang up first."
+    },
+    {
+      "id": "predict-hourly-pattern",
+      "category": "prediction",
+      "tags": ["коли", "when", "прогноз", "forecast", "predict", "ймовірн", "probability", "час", "time"],
+      "content_uk": "ПРОГНОЗ ТРИВОГ (статистичний):\nСистема аналізує історичні дані alerts.in.ua: години доби, дні тижня, частоту по областях.\nВисокий ризик = години з найбільшою кількістю минулих тривог у цій області за 30 днів.\nПоточна активність (live) має пріоритет над статистикою.\nПояснюйте користувачу: це ймовірнісна оцінка, не гарантія; завжди реагуйте на офіційну тривогу.",
+      "content_en": "ALARM FORECAST (statistical):\nThe system analyzes alerts.in.ua history: time of day, weekday, regional frequency.\nHigh risk = hours with most past alarms in that oblast over 30 days.\nLive active alerts override statistics.\nTell users: this is probabilistic, not a guarantee; always respond to official alarms."
+    },
+    {
+      "id": "safety-go-bag",
+      "category": "safety",
+      "tags": ["валіза", "bag", "підгот", "prepare", "речі", "things"],
+      "content_uk": "ТРИВОЖНА ВАЛІЗА:\n• Документи, готівка, карта\n• Вода 3 л/добу, їжа на 3 дні\n• Ліки, аптечка, ліхтарик, powerbank\n• Теплий одяг, копія ключів\n• Для дітей — іграшка, підгузки\nТримайте біля дверей; оновлюйте терміни ліків.",
+      "content_en": "GO-BAG:\n• Documents, cash, bank card\n• Water 3L/day, food for 3 days\n• Medicines, first aid, flashlight, power bank\n• Warm clothes, spare keys\n• For children — comfort item, diapers\nKeep near exit; refresh medicine expiry dates."
+    },
+    {
+      "id": "safety-high-rise",
+      "category": "safety",
+      "tags": ["поверх", "багатоповерх", "high-rise", "квартира", "apartment", "вікно", "window"],
+      "content_uk": "БАГАТОПОВЕРХОВКА:\n• Не використовуйте ліфт під час тривоги.\n• Якщо немає часу спуститись — укриття у внутрішній кімнаті без вікон, дві стіни від зовнішніх.\n• Відійдіть від вікон, балконів, скляних перегородок.\n• Лежачі ураження: лягайте, голова подалі від зовнішніх стін.",
+      "content_en": "HIGH-RISE:\n• Do not use elevators during alarms.\n• If no time to descend — inner room without windows, two walls from exterior.\n• Stay away from windows, balconies, glass partitions.\n• If lying down: floor position, head away from outer walls."
+    },
+    {
+      "id": "safety-outdoors",
+      "category": "safety",
+      "tags": ["вулиця", "street", "outside", "надворі", "парк", "car", "авто"],
+      "content_uk": "НА ВУЛИЦІ / В АВТО:\n• Шукайте найближче укриття: метро, підземний паркінг, підвал.\n• У авто — зупиніться, лягайте нижче рівня вікон, відкрийте двері для швидкого виходу.\n• Не ховайтесь під мостами чи біля скляних фасадів.\n• Після відбою — обережно рухайтесь, уникайте натовпів біля станцій метро.",
+      "content_en": "OUTDOORS / IN CAR:\n• Find nearest shelter: metro, underground parking, basement.\n• In car — stop, get below window level, keep doors unlocked for quick exit.\n• Do not shelter under bridges or near glass facades.\n• After all-clear — move carefully, avoid crowds at metro entrances."
+    },
+    {
+      "id": "safety-children-elderly",
+      "category": "safety",
+      "tags": ["діти", "children", "літні", "elderly", "сім'я", "family"],
+      "content_uk": "ДІТИ ТА ЛІТНІ:\n• Заздалегідь поясніть дітям маршрут до укриття без паніки.\n• Тримайте документи дітей, контакти родичів.\n• Літнім — допоможіть спуститись сходами, майте ліки при собі.\n• У сховищі: заспокойте дітей, уникайте тривалого перегляду новин.",
+      "content_en": "CHILDREN AND ELDERLY:\n• Explain shelter route to children calmly in advance.\n• Keep children's documents and emergency contacts.\n• Help elderly down stairs; keep their medicines handy.\n• In shelter: calm children, limit doom-scrolling news."
+    },
+    {
+      "id": "dispatcher-triage",
+      "category": "dispatcher",
+      "tags": ["диспетчер", "dispatcher", "пріоритет", "priority", "що робити", "what to do"],
+      "content_uk": "ПРІОРИТЕТИ ДИСПЕТЧЕРА (GuardianEye):\n🔴 КРИТИЧНО — активна тривога в області користувача: укриття зараз.\n🟠 ВИСОКИЙ — часткова тривога або статистично небезпечна година: підготовка.\n🟡 УВАГА — сусідні області з тривогою: моніторинг.\n🟢 НОРМА — без тривоги, низька статистична ймовірність: профілактичні поради.\nЗавжди давайте конкретні кроки, адресу укриття якщо є координати, номери 112/101/103.",
+      "content_en": "DISPATCHER PRIORITIES (GuardianEye):\n🔴 CRITICAL — active alarm in user's oblast: shelter now.\n🟠 HIGH — partial alert or statistically risky hour: prepare.\n🟡 WATCH — neighboring oblasts in alarm: monitor.\n🟢 NORMAL — no alarm, low statistical risk: preventive tips.\nAlways give concrete steps, shelter address if coordinates available, numbers 112/101/103."
+    }
+  ]
+}

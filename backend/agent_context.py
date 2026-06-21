@@ -10,10 +10,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from alerts_service import get_alerts_service
 from config import get_settings
-from data_loader import fetch_alerts
 from database import fetch_rows
-from regions_data import build_regions
+from kyiv_time import format_time_kyiv, now_kyiv, to_kyiv
+from dispatcher import assess_dispatch, format_dispatch_section
+from rag_retriever import build_statistical_chunks, format_rag_section
+from risk_predictor import compute_risk_brief, format_risk_section
 
 def _resolve_shelters_path() -> Path | None:
     settings = get_settings()
@@ -67,20 +70,11 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 def _get_live_regions() -> tuple[List[Dict[str, str]], str]:
     """Return (regions, source_label)."""
-    settings = get_settings()
-
-    if settings.alerts_api_key and not settings.alerts_api_key.startswith("your-"):
-        try:
-            raw = fetch_alerts()
-            active_ids = {
-                str(r.get("location_uid") or r.get("region_id", ""))
-                for r in raw
-            }
-            return build_regions(active_ids), "alerts.in.ua (live)"
-        except RuntimeError:
-            pass
-
-    return build_regions(use_mock=True), "app dashboard (demo data)"
+    svc = get_alerts_service()
+    payload = svc.get_regions_payload()
+    if payload.get("source") == "live":
+        return payload["regions"], "alerts.in.ua (live)"
+    return payload["regions"], "app dashboard (demo data)"
 
 
 def _format_alarm_section() -> str:
@@ -92,7 +86,7 @@ def _format_alarm_section() -> str:
 
     lines = [
         f"## Поточні повітряні тривоги (джерело: {source})",
-        f"Оновлено: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"Оновлено: {now_kyiv().strftime('%Y-%m-%d %H:%M')} (Київ)",
     ]
 
     if active:
@@ -109,19 +103,25 @@ def _format_alarm_section() -> str:
     lines.append(f"🟢 Без тривоги: {clear_count} областей")
 
     # Raw alert details when live API available
-    settings = get_settings()
-    if settings.alerts_api_key and not settings.alerts_api_key.startswith("your-"):
-        try:
-            raw = fetch_alerts()
-            if raw:
-                lines.append("\nДеталі активних тривог:")
-                for item in raw[:20]:
-                    title = item.get("location_title") or item.get("region", "?")
-                    atype = item.get("alert_type") or item.get("threat_type") or "тривога"
-                    started = item.get("started_at") or item.get("start_time") or "?"
-                    lines.append(f"  • {title} — {atype}, початок: {started}")
-        except RuntimeError:
-            pass
+    svc = get_alerts_service()
+    if svc.get_source() == "live":
+        raw = svc.get_alerts()
+        if raw:
+            lines.append("\nДеталі активних тривог:")
+            for item in raw[:20]:
+                title = item.get("location_title") or item.get("region", "?")
+                atype = item.get("alert_type") or item.get("threat_type") or "тривога"
+                started_raw = item.get("started_at") or item.get("start_time")
+                started = "?"
+                if started_raw:
+                    try:
+                        dt = datetime.fromisoformat(str(started_raw).replace("Z", "+00:00"))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        started = format_time_kyiv(dt)
+                    except (ValueError, TypeError):
+                        started = str(started_raw)
+                lines.append(f"  • {title} — {atype}, початок: {started} (Київ)")
 
     return "\n".join(lines)
 
@@ -202,14 +202,18 @@ def _format_shelter_section(query: str, lat: Optional[float], lng: Optional[floa
     return "\n".join(lines)
 
 
-def _format_history_section() -> str:
+def _format_history_section(region_slug: Optional[str] = None) -> str:
     try:
         rows = fetch_rows("alerts", limit=5, order_col="start_time", ascending=False)
     except RuntimeError:
-        rows = []
+        from alert_store import fetch_history
+        rows = fetch_history(limit=20)
+
+    if region_slug and rows:
+        rows = [r for r in rows if str(r.get("region_slug") or r.get("region", "")) == region_slug] or rows[:5]
 
     if not rows:
-        return "## Історія тривог\nНемає збережених записів (Supabase не налаштовано)."
+        return "## Історія тривог\nНемає збережених записів (локальний архів порожній)."
 
     lines = ["## Останні тривоги (історія)"]
     for row in rows:
@@ -233,20 +237,83 @@ def build_agent_context(
     user_message: str,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
+    *,
+    region_slug: Optional[str] = None,
+    language: str = "uk",
 ) -> str:
-    """Assemble live data context for the Grok system prompt."""
+    """Assemble live data + RAG + dispatcher context for the Grok system prompt."""
     sections: List[str] = []
+    is_uk = language == "uk"
 
-    if _ALARM_KEYWORDS.search(user_message) or True:
-        sections.append(_format_alarm_section())
+    regions, _ = _get_live_regions()
+    slug = region_slug or "kyiv-city"
+    region_row = next((r for r in regions if r.get("id") == slug), None)
+    region_status = region_row["status"] if region_row else "clear"
 
+    # Live alarms (always)
+    sections.append(_format_alarm_section())
+
+    # Dispatcher assessment — priority + concrete steps
+    shelter_matches = _search_shelters(user_message, lat=lat, lng=lng, limit=3)
+    shelters_for_dispatch = []
+    for s in shelter_matches:
+        entry: Dict[str, Any] = {"nameUk": s.get("nameUk"), "nameEn": s.get("nameUk")}
+        if lat is not None and lng is not None:
+            entry["distance_km"] = _haversine_km(lat, lng, s["lat"], s["lng"])
+        shelters_for_dispatch.append(entry)
+
+    assessment = assess_dispatch(
+        region_slug=slug,
+        region_status=region_status,
+        all_regions=regions,
+        nearest_shelters=shelters_for_dispatch or None,
+        language=language,
+    )
+    sections.append(format_dispatch_section(assessment, language=language))
+
+    # Statistical risk / prediction
+    risk = compute_risk_brief(slug, current_status=region_status, language=language)
+    sections.append(format_risk_section(risk, language=language))
+    sections.append(build_statistical_chunks(risk, language=language))
+
+    # RAG — retrieve relevant protocols for this query
+    sections.append(format_rag_section(user_message, language=language, top_k=4))
+
+    # Shelters when relevant or geolocation available
     if _SHELTER_KEYWORDS.search(user_message) or lat is not None:
         sections.append(_format_shelter_section(user_message, lat, lng))
-    elif _ALARM_KEYWORDS.search(user_message):
-        # Always include shelter summary when discussing alarms
+    elif _ALARM_KEYWORDS.search(user_message) or region_status in ("active", "warning"):
         sections.append(_format_shelter_section("укриття", lat, lng))
 
     sections.append(_format_safety_section())
-    sections.append(_format_history_section())
+    sections.append(_format_history_section(region_slug=slug))
 
     return "\n\n".join(sections)
+
+
+def build_dispatch_meta(
+    *,
+    region_slug: Optional[str] = None,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    language: str = "uk",
+) -> Dict[str, Any]:
+    """Structured metadata for API responses (risk badge, priority)."""
+    regions, _ = _get_live_regions()
+    slug = region_slug or "kyiv-city"
+    region_row = next((r for r in regions if r.get("id") == slug), None)
+    region_status = region_row["status"] if region_row else "clear"
+    shelters = _search_shelters("укриття", lat=lat, lng=lng, limit=3)
+    shelter_payload = []
+    for s in shelters:
+        entry: Dict[str, Any] = {"nameUk": s.get("nameUk"), "nameEn": s.get("nameUk")}
+        if lat is not None and lng is not None:
+            entry["distance_km"] = round(_haversine_km(lat, lng, s["lat"], s["lng"]), 1)
+        shelter_payload.append(entry)
+    return assess_dispatch(
+        region_slug=slug,
+        region_status=region_status,
+        all_regions=regions,
+        nearest_shelters=shelter_payload or None,
+        language=language,
+    )

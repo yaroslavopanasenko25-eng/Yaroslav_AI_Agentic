@@ -12,9 +12,11 @@ export const SettingsContext = createContext<AppSettings>({
   theme: 'dark',
   language: 'uk',
   dyslexiaMode: false,
+  selectedRegionId: 'kyiv-city',
   setTheme: () => {},
   setLanguage: () => {},
   setDyslexiaMode: () => {},
+  setSelectedRegionId: () => {},
 });
 
 export const useAppSettings = () => useContext(SettingsContext);
@@ -33,6 +35,9 @@ function App() {
   const [dyslexiaMode, setDyslexiaModeState] = useState<boolean>(
     () => localStorage.getItem('dyslexia') === 'true',
   );
+  const [selectedRegionId, setSelectedRegionIdState] = useState<string>(
+    () => localStorage.getItem('selectedRegion') || 'kyiv-city',
+  );
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -48,6 +53,11 @@ function App() {
   const setDyslexiaMode = useCallback((v: boolean) => {
     setDyslexiaModeState(v);
     localStorage.setItem('dyslexia', String(v));
+  }, []);
+
+  const setSelectedRegionId = useCallback((id: string) => {
+    setSelectedRegionIdState(id);
+    localStorage.setItem('selectedRegion', id);
   }, []);
 
   useEffect(() => {
@@ -66,7 +76,10 @@ function App() {
   }, []);
 
   return (
-    <SettingsContext.Provider value={{ theme, language, dyslexiaMode, setTheme, setLanguage, setDyslexiaMode }}>
+    <SettingsContext.Provider value={{
+      theme, language, dyslexiaMode, selectedRegionId,
+      setTheme, setLanguage, setDyslexiaMode, setSelectedRegionId,
+    }}>
       <div className="app-shell" data-theme={theme} data-dyslexia={dyslexiaMode}>
         <Sidebar activeTab={tab} onTabChange={setTab} onSettingsOpen={() => setSettingsOpen(true)} />
         <main className="content-area">

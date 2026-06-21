@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+from kyiv_time import now_utc
 from typing import Any, Dict, List, Optional
 
-import requests
-
+from alerts_service import get_alerts_service
 from config import get_settings
 from database import upsert_rows
+from regions_data import API_OBLAST_UID_TO_SLUG, slug_from_alert
 
 
 def _parse_iso(value: Optional[str]) -> Optional[datetime]:
@@ -26,55 +28,35 @@ def _parse_iso(value: Optional[str]) -> Optional[datetime]:
 def _duration_minutes(start: Optional[datetime], end: Optional[datetime]) -> Optional[int]:
     if not start:
         return None
-    finish = end or datetime.now(timezone.utc)
+    finish = end or now_utc()
     return max(0, int((finish - start).total_seconds() // 60))
 
 
 def fetch_alerts() -> List[Dict[str, Any]]:
-    """Fetch active alerts from alerts.in.ua using the configured API key.
-
-    The API requires the token in an ``X-API-Key`` header.
-    """
-    settings = get_settings()
-
-    if not settings.alerts_api_key or "your-alerts" in settings.alerts_api_key:
-        raise RuntimeError(
-            "alerts.in.ua API key is not configured. "
-            "Set ALERTS_API_KEY in your .env file."
-        )
-
-    headers = {"X-API-Key": settings.alerts_api_key}
-
-    try:
-        response = requests.get(
-            settings.alerts_api_url,
-            headers=headers,
-            timeout=settings.request_timeout_seconds,
-        )
-        response.raise_for_status()
-        payload: Any = response.json()
-    except requests.RequestException as exc:
-        raise RuntimeError("Failed to fetch alerts from alerts.in.ua.") from exc
-
-    alerts: Any = payload.get("alerts", payload) if isinstance(payload, dict) else payload
-    if not isinstance(alerts, list):
-        raise RuntimeError("Unexpected response format from alerts.in.ua.")
-
-    return [item for item in alerts if isinstance(item, dict)]
+    """Return cached active alerts (refresh if needed)."""
+    svc = get_alerts_service()
+    svc.refresh_active()
+    return svc.get_alerts()
 
 
 def transform_alerts(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalise raw API payloads into Supabase-ready records."""
+    """Normalise raw API payloads into store/Supabase-ready records."""
     records: List[Dict[str, Any]] = []
 
     for item in raw:
         start_dt = _parse_iso(item.get("started_at") or item.get("start_time"))
         end_dt = _parse_iso(item.get("finished_at") or item.get("end_time"))
+        oblast_slug = slug_from_alert(item)
+        region_id = str(item.get("location_oblast_uid") or item.get("location_uid") or "")
 
         record: Dict[str, Any] = {
-            "id": item.get("id"),
-            "region_id": item.get("location_uid") or item.get("region_id"),
-            "region": item.get("location_title") or item.get("region", "unknown"),
+            "id": str(item.get("id")),
+            "region_id": region_id,
+            "region_slug": oblast_slug,
+            "region": item.get("location_oblast") or item.get("location_title") or "unknown",
+            "location_title": item.get("location_title") or "",
+            "location_oblast": item.get("location_oblast") or "",
+            "location_type": item.get("location_type") or "",
             "alert_type": item.get("alert_type") or item.get("threat_type", "unknown"),
             "start_time": start_dt.isoformat() if start_dt else None,
             "end_time": end_dt.isoformat() if end_dt else None,
@@ -83,7 +65,7 @@ def transform_alerts(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "raw": item,
         }
 
-        if record["id"] is not None:
+        if record["id"] and record["id"] != "None":
             records.append(record)
 
     return records
@@ -93,7 +75,17 @@ def run_ingestion() -> int:
     """Fetch → transform → upsert.  Returns the number of records processed."""
     raw = fetch_alerts()
     records = transform_alerts(raw)
-    upsert_rows("alerts", records)
+    if not records:
+        return 0
+
+    from alert_store import upsert_alerts
+
+    upsert_alerts(records)
+
+    settings = get_settings()
+    if "your-project" not in settings.supabase_url:
+        upsert_rows("alerts", records)
+
     return len(records)
 
 

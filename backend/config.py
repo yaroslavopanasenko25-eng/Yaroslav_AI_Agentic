@@ -1,7 +1,7 @@
-"""Centralised application configuration loaded from environment variables.
+﻿"""Centralised application configuration loaded from environment variables.
 
 All environment variables are defined once here.  Every other module imports
-from this file — nothing else calls ``os.getenv`` directly.
+from this file вЂ” nothing else calls ``os.getenv`` directly.
 """
 
 from __future__ import annotations
@@ -26,11 +26,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── Supabase ─────────────────────────────────────────────────────────────
+    # в”Ђв”Ђ Supabase в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     supabase_url: str = Field(..., description="Supabase project URL")
     supabase_key: str = Field(..., description="Supabase service-role or anon key")
 
-    # ── Grok (xAI) ───────────────────────────────────────────────────────────
+    # в”Ђв”Ђ Grok (xAI) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     # Accepts both GROK_* and XAI_* env names (xAI console uses XAI_ prefix).
     grok_api_key: str = Field(
         ...,
@@ -53,20 +53,26 @@ class Settings(BaseSettings):
         description="Optional xAI base URL; /chat/completions is appended automatically",
     )
 
-    # ── alerts.in.ua ─────────────────────────────────────────────────────────
-    alerts_api_key: str = Field(..., description="alerts.in.ua API token (X-API-Key header)")
+    # в”Ђв”Ђ alerts.in.ua в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+    alerts_api_key: str = Field(..., description="alerts.in.ua API token (Authorization: Bearer)")
     alerts_api_url: str = Field(
         default="https://api.alerts.in.ua/v1/alerts/active.json",
         description="alerts.in.ua active-alerts endpoint",
     )
 
-    # ── CORS ─────────────────────────────────────────────────────────────────
+    # в”Ђв”Ђ CORS в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     allowed_origins: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:5173"],
+        default=[
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:5175",
+            "http://127.0.0.1:5175",
+        ],
         description="Comma-separated list of allowed CORS origins",
     )
 
-    # ── General ──────────────────────────────────────────────────────────────
+    # в”Ђв”Ђ General в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     debug: bool = Field(default=False, description="Enable debug logging")
     port: int = Field(default=8080, ge=1, le=65535, description="Server port (Docker/DO)")
     shelters_json_path: str | None = Field(
@@ -77,6 +83,16 @@ class Settings(BaseSettings):
         default=20,
         ge=1,
         description="Default outbound HTTP request timeout in seconds",
+    )
+    alerts_poll_interval_seconds: int = Field(
+        default=30,
+        ge=15,
+        le=120,
+        description="Background poll interval for alerts.in.ua active.json (min 15s)",
+    )
+    alert_store_path: str | None = Field(
+        default=None,
+        description="Override path for local alert history JSON store",
     )
 
     @field_validator("allowed_origins", mode="before")
@@ -131,3 +147,4 @@ def get_settings() -> Settings:
     so the .env file is only parsed once per process.
     """
     return Settings()
+

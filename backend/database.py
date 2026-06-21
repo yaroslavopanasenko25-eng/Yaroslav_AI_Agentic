@@ -10,11 +10,7 @@ from config import get_settings
 
 
 def get_supabase_client() -> Client:
-    """Return an authenticated Supabase client built from application settings.
-
-    Raises:
-        RuntimeError: When the Supabase URL or key are still placeholder values.
-    """
+    """Return an authenticated Supabase client built from application settings."""
     settings = get_settings()
 
     if "your-project" in settings.supabase_url or not settings.supabase_key:
@@ -25,46 +21,37 @@ def get_supabase_client() -> Client:
 
     try:
         return create_client(settings.supabase_url, settings.supabase_key)
-    except Exception as exc:
-        raise RuntimeError("Unable to initialise Supabase client.") from exc
-
-
-# ── Convenience helpers ───────────────────────────────────────────────────────
-
-def upsert_rows(table: str, records: List[Dict[str, Any]], on_conflict: str = "id") -> None:
-    """Upsert a list of records into *table*, merging on *on_conflict* column."""
-    if not records:
-        return
-    try:
-        get_supabase_client().table(table).upsert(records, on_conflict=on_conflict).execute()
-    except Exception as exc:
-        raise RuntimeError(f"Upsert into '{table}' failed.") from exc
+    except Exception as exc:  # pragma: no cover - external client failure
+        raise RuntimeError("Unable to initialize Supabase client.") from exc
 
 
 def fetch_rows(
     table: str,
     *,
-    limit: int = 500,
-    order_col: str = "created_at",
-    ascending: bool = False,
-    filters: Optional[Dict[str, Any]] = None,
+    limit: Optional[int] = None,
+    order_col: Optional[str] = None,
+    ascending: bool = True,
+    since_iso: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Fetch rows from *table* with optional filtering and ordering.
+    """Fetch rows from a Supabase table with optional ordering and time filter."""
+    client = get_supabase_client()
+    query = client.table(table).select("*")
 
-    Returns an empty list when Supabase is not yet configured (placeholder keys),
-    so the app can still start and serve mock data during local development.
-    """
-    try:
-        client = get_supabase_client()
-    except RuntimeError:
-        return []
+    if since_iso and order_col:
+        query = query.gte(order_col, since_iso)
+    if order_col:
+        query = query.order(order_col, desc=not ascending)
+    if limit is not None:
+        query = query.limit(limit)
 
-    try:
-        query = client.table(table).select("*").order(order_col, desc=not ascending).limit(limit)
-        if filters:
-            for column, value in filters.items():
-                query = query.eq(column, value)
-        result = query.execute()
-        return result.data or []
-    except Exception as exc:
-        raise RuntimeError(f"Fetch from '{table}' failed.") from exc
+    result = query.execute()
+    return list(result.data or [])
+
+
+def upsert_rows(table: str, rows: List[Dict[str, Any]], *, on_conflict: str = "id") -> int:
+    """Upsert rows into a Supabase table. Returns number of rows attempted."""
+    if not rows:
+        return 0
+    client = get_supabase_client()
+    client.table(table).upsert(rows, on_conflict=on_conflict).execute()
+    return len(rows)
