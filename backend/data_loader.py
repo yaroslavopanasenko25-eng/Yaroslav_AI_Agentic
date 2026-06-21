@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+from kyiv_time import now_utc
 from typing import Any, Dict, List, Optional
 
 from alerts_service import get_alerts_service
@@ -26,7 +28,7 @@ def _parse_iso(value: Optional[str]) -> Optional[datetime]:
 def _duration_minutes(start: Optional[datetime], end: Optional[datetime]) -> Optional[int]:
     if not start:
         return None
-    finish = end or datetime.now(timezone.utc)
+    finish = end or now_utc()
     return max(0, int((finish - start).total_seconds() // 60))
 
 
@@ -52,6 +54,9 @@ def transform_alerts(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "region_id": region_id,
             "region_slug": oblast_slug,
             "region": item.get("location_oblast") or item.get("location_title") or "unknown",
+            "location_title": item.get("location_title") or "",
+            "location_oblast": item.get("location_oblast") or "",
+            "location_type": item.get("location_type") or "",
             "alert_type": item.get("alert_type") or item.get("threat_type", "unknown"),
             "start_time": start_dt.isoformat() if start_dt else None,
             "end_time": end_dt.isoformat() if end_dt else None,

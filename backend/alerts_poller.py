@@ -58,6 +58,9 @@ async def alerts_poll_loop() -> None:
                     added = await asyncio.to_thread(upsert_alerts, hist_records)
                     if added:
                         logger.info("History sync uid=%s: %d record(s)", uid, added)
+                    from war_history import update_monthly_aggregates
+
+                    await asyncio.to_thread(update_monthly_aggregates, hist_records)
 
         except asyncio.CancelledError:
             raise

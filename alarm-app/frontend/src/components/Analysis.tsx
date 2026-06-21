@@ -6,6 +6,7 @@ import {
   ResponsiveContainer, LineChart, Line, Legend,
 } from 'recharts';
 import type { AlarmEvent } from '../types';
+import { kyivChartDate, kyivHourLabel } from '../utils/kyivTime';
 
 // ── Deterministic pseudo-random ───────────────────────────────────────────────
 function sr(seed: number): number {
@@ -14,7 +15,7 @@ function sr(seed: number): number {
 }
 
 // ── Period definition ─────────────────────────────────────────────────────────
-type Period = '1h' | '1d' | '7d' | '14d' | '30d' | 'all';
+type Period = '1h' | '1d' | '7d' | '14d' | '30d' | '1y' | 'all';
 
 interface PeriodConfig {
   label: string;
@@ -26,14 +27,25 @@ interface PeriodConfig {
 
 const PERIOD_CONFIG: Record<Period, PeriodConfig> = {
   '1h':  { label: '1H',   labelUk: '1год',  points: 12, dateFn: (i) => `${String(i * 5).padStart(2,'0')}m`,      timeFn: (i) => `${String(i * 5).padStart(2,'0')}m` },
-  '1d':  { label: '1D',   labelUk: '1д',    points: 24, dateFn: (i) => `${String(i).padStart(2,'0')}:00`,        timeFn: (i) => `${String(i).padStart(2,'0')}:00`   },
-  '7d':  { label: '7D',   labelUk: '7д',    points: 7,  dateFn: (i) => { const d = new Date(); d.setDate(d.getDate()-6+i); return d.toLocaleDateString('uk',{month:'numeric',day:'numeric'}); }, timeFn: () => '00:00' },
-  '14d': { label: '14D',  labelUk: '14д',   points: 14, dateFn: (i) => { const d = new Date(); d.setDate(d.getDate()-13+i); return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; }, timeFn: () => '00:00' },
-  '30d': { label: '30D',  labelUk: '30д',   points: 30, dateFn: (i) => { const d = new Date(); d.setDate(d.getDate()-29+i); return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; }, timeFn: () => '00:00' },
-  'all': { label: 'ALL',  labelUk: 'Всі',   points: 60, dateFn: (i) => { const d = new Date(); d.setDate(d.getDate()-59+i); return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; }, timeFn: () => '00:00' },
+  '1d':  { label: '1D',   labelUk: '1д',    points: 24, dateFn: (i) => kyivHourLabel(i),        timeFn: (i) => kyivHourLabel(i)   },
+  '7d':  { label: '7D',   labelUk: '7д',    points: 7,  dateFn: (i) => kyivChartDate(i - 6), timeFn: () => '00:00' },
+  '14d': { label: '14D',  labelUk: '14д',   points: 14, dateFn: (i) => kyivChartDate(i - 13), timeFn: () => '00:00' },
+  '30d': { label: '30D',  labelUk: '30д',   points: 30, dateFn: (i) => kyivChartDate(i - 29), timeFn: () => '00:00' },
+  '1y':  { label: '1Y',   labelUk: '1рік',  points: 12, dateFn: (i) => `${String((i % 12) + 1).padStart(2,'0')}.${String(24 + Math.floor(i / 12)).slice(-2)}`, timeFn: () => '00:00' },
+  'all': { label: 'War',  labelUk: 'Вся війна', points: 40, dateFn: (i) => `${String((i % 12) + 1).padStart(2,'0')}.${String(22 + Math.floor(i / 12)).slice(-2)}`, timeFn: () => '00:00' },
 };
 
-const PERIODS: Period[] = ['1h', '1d', '7d', '14d', '30d', 'all'];
+const PERIODS: Period[] = ['1h', '1d', '7d', '14d', '30d', '1y', 'all'];
+
+const PERIOD_LABELS: Record<Period, { activeUk: string; activeEn: string; totalUk: string; totalEn: string }> = {
+  '1h':  { activeUk: 'Активні зараз', activeEn: 'Active now', totalUk: 'За годину', totalEn: 'Last hour' },
+  '1d':  { activeUk: 'Активні зараз', activeEn: 'Active now', totalUk: 'Сьогодні', totalEn: 'Today' },
+  '7d':  { activeUk: 'Активні зараз', activeEn: 'Active now', totalUk: 'За 7 днів', totalEn: 'Last 7 days' },
+  '14d': { activeUk: 'Активні зараз', activeEn: 'Active now', totalUk: 'За 14 днів', totalEn: 'Last 14 days' },
+  '30d': { activeUk: 'Активні зараз', activeEn: 'Active now', totalUk: 'За 30 днів', totalEn: 'Last 30 days' },
+  '1y':  { activeUk: 'Активні зараз', activeEn: 'Active now', totalUk: 'За рік', totalEn: 'Last year' },
+  'all': { activeUk: 'Активні зараз', activeEn: 'Active now', totalUk: 'За всю війну', totalEn: 'Full war' },
+};
 
 const REGION_NAMES_UK: Record<string, string> = {
   kharkiv:'Харківська', donetsk:'Донецька', sumy:'Сумська',
@@ -50,7 +62,7 @@ const REGION_NAMES_EN: Record<string, string> = {
 const ALL_REGION_IDS = Object.keys(REGION_NAMES_UK);
 
 // ── Data generation ───────────────────────────────────────────────────────────
-function generateData(period: Period): { barData: object[]; lineData: object[]; history: AlarmEvent[]; totals: { missiles: number; drones: number; destroyed: number; hit: number } } {
+function generateData(period: Period): { barData: object[]; lineData: object[]; history: AlarmEvent[]; totals: { missiles: number; drones: number; destroyed: number; hit: number; totalAlerts?: number; activeAlerts?: number; avgDurationMinutes?: number; regionsAffected?: number } } {
   const cfg = PERIOD_CONFIG[period];
   const BASE = PERIODS.indexOf(period) * 37; // different seed per period
 
@@ -115,8 +127,39 @@ interface AnalysisData {
   barData: object[];
   lineData: object[];
   history: AlarmEvent[];
-  totals: { missiles: number; drones: number; destroyed: number; hit: number; totalAlerts?: number };
+  totals: {
+    missiles: number;
+    drones: number;
+    destroyed: number;
+    hit: number;
+    totalAlerts?: number;
+    activeAlerts?: number;
+    avgDurationMinutes?: number;
+    regionsAffected?: number;
+  };
   source?: string;
+  updatedAt?: string;
+  warDays?: number;
+  periodDays?: number;
+  warDataNote?: string;
+}
+
+type LiveAlarmEvent = AlarmEvent & {
+  regionLabel?: string;
+  oblastLabel?: string;
+  alertType?: string;
+  durationLabel?: string;
+  dateLabel?: string;
+  isActive?: boolean;
+};
+
+function formatStartCell(ev: LiveAlarmEvent, language: 'uk' | 'en'): string {
+  const label = ev.dateLabel
+    || (ev.date ? (language === 'uk' ? 'Сьогодні' : 'Today') : '');
+  if (label && ev.startTime) {
+    return `${label}, ${ev.startTime}`;
+  }
+  return ev.startTime || label || '—';
 }
 
 export default function Analysis() {
@@ -125,25 +168,41 @@ export default function Analysis() {
   const [period, setPeriod] = useState<Period>('14d');
   const [apiData, setApiData] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<string>('');
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/alarms/analysis?period=${period}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.barData && data.history) {
-          setApiData(data);
-        } else {
-          setApiData(null);
-        }
-      })
-      .catch(() => setApiData(null))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    const load = (initial = false) => {
+      if (initial) setLoading(true);
+      fetch(`/api/alarms/analysis?period=${period}`, { cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => {
+          if (cancelled) return;
+          if (data.barData && data.history && data.source !== 'demo') {
+            setApiData(data);
+            if (data.updatedAt) setUpdatedAt(data.updatedAt);
+          } else if (!apiData) {
+            setApiData(null);
+          }
+        })
+        .catch(() => { if (!cancelled && !apiData) setApiData(null); })
+        .finally(() => { if (!cancelled && initial) setLoading(false); });
+    };
+
+    load(true);
+    const timer = window.setInterval(() => load(false), 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keep prior live data on period switch until new fetch completes
   }, [period]);
 
   const mockData = useMemo(() => generateData(period), [period]);
 
-  const { barData, lineData, history, totals, source } = apiData && apiData.source !== 'demo'
+  const isLive = Boolean(apiData && apiData.source !== 'demo');
+  const { barData, lineData, history, totals, source } = isLive && apiData
     ? { ...apiData, source: apiData.source }
     : { ...mockData, source: 'demo' };
 
@@ -151,8 +210,17 @@ export default function Analysis() {
     ? Math.round(totals.destroyed / (totals.missiles + totals.drones) * 100)
     : 0;
 
-  const isLive = source === 'local' || source === 'supabase' || source === 'live';
   const totalAlerts = totals.totalAlerts ?? (totals.missiles + totals.drones);
+  const activeCount = totals.activeAlerts ?? 0;
+  const airCount = totals.missiles ?? 0;
+  const avgDuration = totals.avgDurationMinutes ?? 0;
+  const periodLabels = PERIOD_LABELS[period];
+
+  const alertTypeLabel = (type?: string) => {
+    if (!type) return '—';
+    if (type === 'air_raid') return language === 'uk' ? 'Повітряна тривога' : 'Air raid';
+    return type.replace(/_/g, ' ');
+  };
 
   const regionNames = language === 'uk' ? REGION_NAMES_UK : REGION_NAMES_EN;
 
@@ -172,8 +240,18 @@ export default function Analysis() {
           <h1 className="page-title">{t('analysis')}</h1>
           {isLive && (
             <div style={{ fontSize: 12, color: 'var(--accent-green)', marginTop: 4 }}>
-              ● {language === 'uk' ? 'Дані alerts.in.ua' : 'alerts.in.ua data'}
+              ● {language === 'uk' ? 'Дані alerts.in.ua · час Київ' : 'alerts.in.ua data · Kyiv time'}
+              {updatedAt && (
+                <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>
+                  {language === 'uk' ? 'оновлено' : 'updated'} {updatedAt}
+                </span>
+              )}
               {loading ? ' …' : ''}
+            </div>
+          )}
+          {isLive && (period === 'all' || period === '1y') && apiData?.warDataNote && (
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6, maxWidth: 520 }}>
+              {apiData.warDataNote}
             </div>
           )}
         </div>
@@ -183,34 +261,54 @@ export default function Analysis() {
               key={p}
               className={`period-btn${period === p ? ' active' : ''}`}
               onClick={() => setPeriod(p)}
+              title={p === 'all'
+                ? (language === 'uk'
+                  ? `З 24 лютого 2022 · ${apiData?.warDays ?? '…'} днів`
+                  : `Since 24 Feb 2022 · ${apiData?.warDays ?? '…'} days`)
+                : undefined}
             >
               {language === 'uk' ? PERIOD_CONFIG[p].labelUk : PERIOD_CONFIG[p].label}
+              {p === 'all' && isLive && apiData?.warDays ? (
+                <span style={{ fontSize: 10, opacity: 0.75, marginLeft: 4 }}>{apiData.warDays}д</span>
+              ) : null}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — live: real alert counts from alerts.in.ua */}
       <div className="stat-grid">
         <div className="glass-card stat-card">
           <div className="stat-icon red">🚨</div>
-          <div className="stat-value">{isLive ? totalAlerts : totals.missiles}</div>
-          <div className="stat-label">{isLive ? (language === 'uk' ? 'Тривоги' : 'Alerts') : t('missiles')}</div>
+          <div className="stat-value">{isLive ? activeCount : totals.missiles}</div>
+          <div className="stat-label">
+            {isLive
+              ? (language === 'uk' ? 'Активні зараз (live)' : 'Active now (live)')
+              : t('missiles')}
+          </div>
         </div>
         <div className="glass-card stat-card">
           <div className="stat-icon orange">📍</div>
-          <div className="stat-value">{isLive ? totals.missiles : totals.drones}</div>
+          <div className="stat-value">{isLive ? airCount : totals.drones}</div>
           <div className="stat-label">{isLive ? (language === 'uk' ? 'Повітряні' : 'Air raid') : t('drones')}</div>
         </div>
         <div className="glass-card stat-card">
           <div className="stat-icon green">📊</div>
-          <div className="stat-value">{isLive ? totals.drones : totals.destroyed}</div>
-          <div className="stat-label">{isLive ? (language === 'uk' ? 'Інші типи' : 'Other types') : t('destroyed')}</div>
+          <div className="stat-value">{isLive ? totalAlerts : totals.destroyed}</div>
+          <div className="stat-label">
+            {isLive
+              ? (language === 'uk' ? `Тривоги · ${periodLabels.totalUk.toLowerCase()}` : `Alerts · ${periodLabels.totalEn.toLowerCase()}`)
+              : t('destroyed')}
+          </div>
         </div>
         <div className="glass-card stat-card">
           <div className="stat-icon red">⏱</div>
-          <div className="stat-value">{isLive ? '—' : totals.hit}</div>
-          <div className="stat-label">{isLive ? (language === 'uk' ? 'N/A' : 'N/A') : t('hit')}</div>
+          <div className="stat-value">{isLive ? avgDuration : totals.hit}</div>
+          <div className="stat-label">
+            {isLive
+              ? (language === 'uk' ? 'Сер. тривалість (хв)' : 'Avg duration (min)')
+              : t('hit')}
+          </div>
         </div>
       </div>
 
@@ -240,7 +338,7 @@ export default function Analysis() {
         <div className="glass-card chart-card">
           <div className="section-title">
             {isLive
-              ? (language === 'uk' ? 'Тривоги по періодах' : 'Alerts by Period')
+              ? (language === 'uk' ? `Тривоги ${periodLabels.totalUk.toLowerCase()}` : `Alerts ${periodLabels.totalEn.toLowerCase()}`)
               : (language === 'uk' ? 'Загрози по днях' : 'Threats by Period')}
           </div>
           <div className="chart-inner">
@@ -293,25 +391,58 @@ export default function Analysis() {
           </div>
         </div>
 
-        {/* History table */}
+        {/* History / active alerts table */}
         <div className="glass-card full-width analysis-table-card">
-          <div className="section-title">{t('alarmHistory')}</div>
+          <div className="section-title">
+            {isLive
+              ? (language === 'uk' ? `Тривоги ${periodLabels.totalUk.toLowerCase()}` : `Alerts ${periodLabels.totalEn.toLowerCase()}`)
+              : t('alarmHistory')}
+          </div>
           <div className="alarm-table-wrap">
             <table className="alarm-table">
               <thead>
                 <tr>
-                  <th>{language === 'uk' ? 'Дата' : 'Date'}</th>
-                  <th>{language === 'uk' ? 'Початок' : 'Start'}</th>
-                  <th>{t('duration')}</th>
-                  <th>{language === 'uk' ? 'Регіони' : 'Regions'}</th>
-                  <th>{t('missiles')}</th>
-                  <th>{t('drones')}</th>
-                  <th>{t('destroyed')}</th>
-                  <th>{t('hit')}</th>
+                  {isLive ? (
+                    <>
+                      <th>{language === 'uk' ? 'Локація' : 'Location'}</th>
+                      <th>{language === 'uk' ? 'Область' : 'Oblast'}</th>
+                      <th>{language === 'uk' ? 'Початок' : 'Start'}</th>
+                      <th>{t('duration')}</th>
+                      <th>{language === 'uk' ? 'Тип' : 'Type'}</th>
+                    </>
+                  ) : (
+                    <>
+                      <th>{language === 'uk' ? 'Дата' : 'Date'}</th>
+                      <th>{language === 'uk' ? 'Початок' : 'Start'}</th>
+                      <th>{t('duration')}</th>
+                      <th>{language === 'uk' ? 'Регіони' : 'Regions'}</th>
+                      <th>{t('missiles')}</th>
+                      <th>{t('drones')}</th>
+                      <th>{t('destroyed')}</th>
+                      <th>{t('hit')}</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {history.map(ev => {
+                  const liveEv = ev as LiveAlarmEvent;
+                  if (isLive) {
+                    return (
+                      <tr key={ev.id}>
+                        <td style={{ fontWeight: 600 }}>{liveEv.regionLabel || regionNames[ev.regions[0]] || ev.regions[0]}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{liveEv.oblastLabel || '—'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{formatStartCell(liveEv, language)}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {liveEv.durationLabel || `${ev.duration} ${t('minutes')}`}
+                        </td>
+                        <td>
+                          <span className="threat-pill missiles">{alertTypeLabel(liveEv.alertType)}</span>
+                        </td>
+                      </tr>
+                    );
+                  }
+
                   const m = ev.threats.find(t => t.type === 'missiles');
                   const d = ev.threats.find(t => t.type === 'drones');
                   const totalDest = (m?.destroyed ?? 0) + (d?.destroyed ?? 0);
@@ -323,7 +454,7 @@ export default function Analysis() {
                       <td style={{ whiteSpace: 'nowrap' }}>{ev.duration} {t('minutes')}</td>
                       <td>
                         <div className="regions-wrap">
-                          {(ev as AlarmEvent & { regionLabel?: string }).regionLabel
+                          {liveEv.regionLabel
                             || regionNames[ev.regions[0]]
                             || ev.regions[0]}
                         </div>

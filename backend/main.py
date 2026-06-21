@@ -29,10 +29,11 @@ from alert_store import fetch_history as fetch_local_history
 from alerts_poller import alerts_poll_loop
 from alerts_service import get_alerts_service
 from config import get_settings
-from data_loader import run_ingestion
+from data_loader import fetch_alerts, run_ingestion, transform_alerts
 from database import fetch_rows
 from history_analytics import build_analysis_payload
-from mock_data import SAFETY_TIPS, generate_mock_history
+from war_history import get_war_monthly_chart, get_war_records, get_monthly_chart_since, refresh_war_snapshot, snapshot_age_seconds
+from kyiv_time import period_cutoff_utc, to_kyiv
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -49,12 +50,30 @@ async def lifespan(app: FastAPI):
         "Alerts poller started (interval=%ds)",
         get_settings().alerts_poll_interval_seconds,
     )
+
+    async def _war_refresh_loop() -> None:
+        while True:
+            try:
+                if _alerts_api_configured():
+                    await asyncio.to_thread(refresh_war_snapshot)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("War snapshot refresh failed: %s", exc)
+            await asyncio.sleep(3600)
+
+    war_task = asyncio.create_task(_war_refresh_loop())
+    if _alerts_api_configured():
+        asyncio.create_task(asyncio.to_thread(refresh_war_snapshot))
+
     yield
     task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    war_task.cancel()
+    for t in (task, war_task):
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
 
 
 # ── App setup ─────────────────────────────────────────────────────────────────
@@ -161,21 +180,134 @@ def get_alarm_history(limit: int = 100) -> Dict[str, Any]:
     return {"history": rows, "count": len(rows), "source": source}
 
 
+def _alerts_api_configured() -> bool:
+    cfg = get_settings()
+    return bool(cfg.alerts_api_key) and "your-alerts" not in cfg.alerts_api_key
+
+
+def _load_analysis_records(limit: int = 5000, period: str = "14d") -> tuple[List[Dict[str, Any]], str]:
+    """Prefer live alerts.in.ua data; merge with stored history for longer periods."""
+    cutoff = period_cutoff_utc(period)
+    since_iso = cutoff.isoformat()
+
+    if period == "all" and _alerts_api_configured():
+        age = snapshot_age_seconds()
+        if age is None or age > 3600:
+            import threading
+
+            threading.Thread(target=refresh_war_snapshot, kwargs={"force": age is None}, daemon=True).start()
+        return get_war_records(), "live"
+
+    live_records: List[Dict[str, Any]] = []
+    if _alerts_api_configured():
+        try:
+            live_records = transform_alerts(fetch_alerts())
+        except Exception as exc:
+            logger.warning("Live alerts fetch failed: %s", exc)
+        if not live_records:
+            cached = transform_alerts(get_alerts_service().get_alerts())
+            if cached:
+                live_records = cached
+
+    if period in ("7d", "14d", "30d", "1y", "1h", "1d"):
+        history_rows = fetch_local_history(since_iso=since_iso, limit=None)
+        hist_source = "local" if history_rows else "demo"
+        if period == "1y" and _alerts_api_configured():
+            war_rows = get_war_records()
+            by_id: Dict[str, Dict[str, Any]] = {}
+            for rec in war_rows:
+                start = rec.get("start_time") or rec.get("started_at") or ""
+                if start >= since_iso:
+                    rid = str(rec.get("id") or "")
+                    if rid:
+                        by_id[rid] = rec
+            for rec in history_rows:
+                rid = str(rec.get("id") or "")
+                if rid:
+                    by_id[rid] = rec
+            history_rows = list(by_id.values())
+            if history_rows:
+                hist_source = "live"
+        if period in ("1h", "1d") and not history_rows:
+            history_rows, hist_source = _load_history(limit=limit)
+    else:
+        history_rows, hist_source = _load_history(limit=limit)
+
+    if live_records:
+        by_id: Dict[str, Dict[str, Any]] = {}
+        for rec in history_rows:
+            if rec.get("id"):
+                by_id[str(rec["id"])] = rec
+        for rec in live_records:
+            by_id[str(rec["id"])] = rec
+        return list(by_id.values()), "live"
+
+    return history_rows, hist_source
+
+
+@api.get("/alarms/active", tags=["alarms"])
+def get_active_alarms() -> Dict[str, Any]:
+    """Return currently active alerts from alerts.in.ua (same source as the dashboard)."""
+    if not _alerts_api_configured():
+        raise HTTPException(status_code=503, detail="alerts.in.ua API key not configured")
+    records = transform_alerts(fetch_alerts())
+    active = [r for r in records if r.get("is_active")]
+    active.sort(key=lambda r: r.get("start_time") or "", reverse=True)
+    from history_analytics import _to_alarm_event
+
+    return {
+        "alerts": [_to_alarm_event(r) for r in active],
+        "count": len(active),
+        "source": "live",
+    }
+
+
 @api.get("/alarms/analysis", tags=["alarms"])
 def get_alarm_analysis(
-    period: str = Query(default="14d", pattern="^(1h|1d|7d|14d|30d|all)$"),
+    period: str = Query(default="14d", pattern="^(1h|1d|7d|14d|30d|1y|all)$"),
 ) -> Dict[str, Any]:
     """Return aggregated chart/table data for the Analysis page."""
-    rows, source = _load_history(limit=2000)
+    live_records: List[Dict[str, Any]] = []
+    if _alerts_api_configured():
+        svc = get_alerts_service()
+        svc.refresh_active()
+        live_records = transform_alerts(svc.get_alerts())
+        if not live_records:
+            try:
+                live_records = transform_alerts(fetch_alerts())
+            except Exception as exc:
+                logger.warning("Live alerts fallback fetch failed: %s", exc)
 
-    if source == "demo":
+    rows, source = _load_analysis_records(limit=5000, period=period)
+
+    if source == "demo" and not _alerts_api_configured():
         return {
             **build_analysis_payload([], period=period),
             "source": "demo",
             "message": "No stored history yet — demo layout shown until data accumulates.",
         }
 
-    payload = build_analysis_payload(rows, period=period)
+    war_bar = None
+    if period == "all":
+        war_bar = get_war_monthly_chart()
+    elif period == "1y":
+        war_bar = get_monthly_chart_since(to_kyiv(period_cutoff_utc("1y")))
+
+    payload = build_analysis_payload(
+        rows,
+        period=period,
+        live_records=live_records or None,
+        war_bar_data=war_bar,
+    )
+    if period == "all":
+        payload["warDataNote"] = (
+            "Помісячний графік накопичується з alerts.in.ua; "
+            "повна історія з 24.02.2022 оновлюється щогодини."
+        )
+    elif period == "1y":
+        payload["warDataNote"] = (
+            "Помісячний графік за рік — дані alerts.in.ua та локальний архів."
+        )
     payload["source"] = source
     return payload
 

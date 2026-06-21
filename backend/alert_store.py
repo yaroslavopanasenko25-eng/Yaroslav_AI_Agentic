@@ -60,12 +60,14 @@ def upsert_alerts(records: List[Dict[str, Any]]) -> int:
 
 def fetch_history(
     *,
-    limit: int = 500,
+    limit: Optional[int] = 500,
     since_iso: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Return stored alert records newest-first."""
+    """Return stored alert records newest-first. limit=None → no cap."""
     rows = _load_raw()
     if since_iso:
         rows = [r for r in rows if (r.get("start_time") or "") >= since_iso]
     rows.sort(key=lambda r: r.get("start_time") or "", reverse=True)
+    if limit is None:
+        return rows
     return rows[:limit]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from kyiv_time import now_kyiv
 from typing import Any, Dict, Iterable, List, Optional
 
 import requests
@@ -99,7 +99,7 @@ def chat(
         The assistant reply as a plain string.
     """
     context = build_agent_context(user_message, lat=lat, lng=lng)
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    timestamp = now_kyiv().strftime("%Y-%m-%d %H:%M") + " (Kyiv)"
     system_content = (
         f"{_CHAT_SYSTEM_PROMPT}\n\n"
         f"=== LIVE APP DATA ({timestamp}) ===\n"

@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from alerts_service import get_alerts_service
 from config import get_settings
 from database import fetch_rows
+from kyiv_time import format_time_kyiv, now_kyiv
 
 def _resolve_shelters_path() -> Path | None:
     settings = get_settings()
@@ -82,7 +83,7 @@ def _format_alarm_section() -> str:
 
     lines = [
         f"## Поточні повітряні тривоги (джерело: {source})",
-        f"Оновлено: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"Оновлено: {now_kyiv().strftime('%Y-%m-%d %H:%M')} (Київ)",
     ]
 
     if active:
@@ -107,8 +108,17 @@ def _format_alarm_section() -> str:
             for item in raw[:20]:
                 title = item.get("location_title") or item.get("region", "?")
                 atype = item.get("alert_type") or item.get("threat_type") or "тривога"
-                started = item.get("started_at") or item.get("start_time") or "?"
-                lines.append(f"  • {title} — {atype}, початок: {started}")
+                started_raw = item.get("started_at") or item.get("start_time")
+                started = "?"
+                if started_raw:
+                    try:
+                        dt = datetime.fromisoformat(str(started_raw).replace("Z", "+00:00"))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        started = format_time_kyiv(dt)
+                    except (ValueError, TypeError):
+                        started = str(started_raw)
+                lines.append(f"  • {title} — {atype}, початок: {started} (Київ)")
 
     return "\n".join(lines)
 
