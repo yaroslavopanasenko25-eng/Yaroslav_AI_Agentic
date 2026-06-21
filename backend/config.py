@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     )
 
     # ── alerts.in.ua ─────────────────────────────────────────────────────────
-    alerts_api_key: str = Field(..., description="alerts.in.ua API token (X-API-Key header)")
+    alerts_api_key: str = Field(..., description="alerts.in.ua API token (Authorization: Bearer)")
     alerts_api_url: str = Field(
         default="https://api.alerts.in.ua/v1/alerts/active.json",
         description="alerts.in.ua active-alerts endpoint",
@@ -77,6 +77,16 @@ class Settings(BaseSettings):
         default=20,
         ge=1,
         description="Default outbound HTTP request timeout in seconds",
+    )
+    alerts_poll_interval_seconds: int = Field(
+        default=30,
+        ge=15,
+        le=120,
+        description="Background poll interval for alerts.in.ua active.json (min 15s)",
+    )
+    alert_store_path: str | None = Field(
+        default=None,
+        description="Override path for local alert history JSON store",
     )
 
     @field_validator("allowed_origins", mode="before")

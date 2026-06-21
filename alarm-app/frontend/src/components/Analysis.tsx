@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppSettings } from '../App';
 import {
@@ -111,19 +111,48 @@ function generateData(period: Period): { barData: object[]; lineData: object[]; 
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
+interface AnalysisData {
+  barData: object[];
+  lineData: object[];
+  history: AlarmEvent[];
+  totals: { missiles: number; drones: number; destroyed: number; hit: number; totalAlerts?: number };
+  source?: string;
+}
+
 export default function Analysis() {
   const { t } = useTranslation();
   const { language } = useAppSettings();
   const [period, setPeriod] = useState<Period>('14d');
+  const [apiData, setApiData] = useState<AnalysisData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const { barData, lineData, history, totals } = useMemo(
-    () => generateData(period),
-    [period],
-  );
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/alarms/analysis?period=${period}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.barData && data.history) {
+          setApiData(data);
+        } else {
+          setApiData(null);
+        }
+      })
+      .catch(() => setApiData(null))
+      .finally(() => setLoading(false));
+  }, [period]);
+
+  const mockData = useMemo(() => generateData(period), [period]);
+
+  const { barData, lineData, history, totals, source } = apiData && apiData.source !== 'demo'
+    ? { ...apiData, source: apiData.source }
+    : { ...mockData, source: 'demo' };
 
   const interceptRate = totals.missiles + totals.drones > 0
     ? Math.round(totals.destroyed / (totals.missiles + totals.drones) * 100)
     : 0;
+
+  const isLive = source === 'local' || source === 'supabase' || source === 'live';
+  const totalAlerts = totals.totalAlerts ?? (totals.missiles + totals.drones);
 
   const regionNames = language === 'uk' ? REGION_NAMES_UK : REGION_NAMES_EN;
 
@@ -141,6 +170,12 @@ export default function Analysis() {
       <div className="page-header">
         <div>
           <h1 className="page-title">{t('analysis')}</h1>
+          {isLive && (
+            <div style={{ fontSize: 12, color: 'var(--accent-green)', marginTop: 4 }}>
+              ● {language === 'uk' ? 'Дані alerts.in.ua' : 'alerts.in.ua data'}
+              {loading ? ' …' : ''}
+            </div>
+          )}
         </div>
         <div className="period-filter">
           {PERIODS.map(p => (
@@ -158,28 +193,28 @@ export default function Analysis() {
       {/* Stat cards */}
       <div className="stat-grid">
         <div className="glass-card stat-card">
-          <div className="stat-icon red">🚀</div>
-          <div className="stat-value">{totals.missiles}</div>
-          <div className="stat-label">{t('missiles')}</div>
+          <div className="stat-icon red">🚨</div>
+          <div className="stat-value">{isLive ? totalAlerts : totals.missiles}</div>
+          <div className="stat-label">{isLive ? (language === 'uk' ? 'Тривоги' : 'Alerts') : t('missiles')}</div>
         </div>
         <div className="glass-card stat-card">
-          <div className="stat-icon orange">🛸</div>
-          <div className="stat-value">{totals.drones}</div>
-          <div className="stat-label">{t('drones')}</div>
+          <div className="stat-icon orange">📍</div>
+          <div className="stat-value">{isLive ? totals.missiles : totals.drones}</div>
+          <div className="stat-label">{isLive ? (language === 'uk' ? 'Повітряні' : 'Air raid') : t('drones')}</div>
         </div>
         <div className="glass-card stat-card">
-          <div className="stat-icon green">🎯</div>
-          <div className="stat-value">{totals.destroyed}</div>
-          <div className="stat-label">{t('destroyed')}</div>
+          <div className="stat-icon green">📊</div>
+          <div className="stat-value">{isLive ? totals.drones : totals.destroyed}</div>
+          <div className="stat-label">{isLive ? (language === 'uk' ? 'Інші типи' : 'Other types') : t('destroyed')}</div>
         </div>
         <div className="glass-card stat-card">
-          <div className="stat-icon red">💥</div>
-          <div className="stat-value">{totals.hit}</div>
-          <div className="stat-label">{t('hit')}</div>
+          <div className="stat-icon red">⏱</div>
+          <div className="stat-value">{isLive ? '—' : totals.hit}</div>
+          <div className="stat-label">{isLive ? (language === 'uk' ? 'N/A' : 'N/A') : t('hit')}</div>
         </div>
       </div>
 
-      {/* Intercept rate */}
+      {!isLive && (
       <div className="glass-card intercept-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -197,12 +232,17 @@ export default function Analysis() {
           }} />
         </div>
       </div>
+      )}
 
       {/* Charts + table */}
       <div className="analysis-grid">
         {/* Bar: threats by day */}
         <div className="glass-card chart-card">
-          <div className="section-title">{language === 'uk' ? 'Загрози по днях' : 'Threats by Period'}</div>
+          <div className="section-title">
+            {isLive
+              ? (language === 'uk' ? 'Тривоги по періодах' : 'Alerts by Period')
+              : (language === 'uk' ? 'Загрози по днях' : 'Threats by Period')}
+          </div>
           <div className="chart-inner">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={barData} margin={{ top: 8, right: 20, left: -8, bottom: 4 }}>
@@ -211,9 +251,9 @@ export default function Analysis() {
                 <YAxis tick={{ fontSize: 10 }} width={36} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                <Bar dataKey="missiles"  name={t('missiles')}  fill="#FF453A" radius={[3,3,0,0]} />
-                <Bar dataKey="drones"    name={t('drones')}    fill="#FF9F0A" radius={[3,3,0,0]} />
-                <Bar dataKey="destroyed" name={t('destroyed')} fill="#30D158" radius={[3,3,0,0]} />
+                <Bar dataKey="missiles"  name={isLive ? (language === 'uk' ? 'Повітряні' : 'Air raid') : t('missiles')}  fill="#FF453A" radius={[3,3,0,0]} />
+                <Bar dataKey="drones"    name={isLive ? (language === 'uk' ? 'Інші' : 'Other') : t('drones')}    fill="#FF9F0A" radius={[3,3,0,0]} />
+                {!isLive && <Bar dataKey="destroyed" name={t('destroyed')} fill="#30D158" radius={[3,3,0,0]} />}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -283,12 +323,9 @@ export default function Analysis() {
                       <td style={{ whiteSpace: 'nowrap' }}>{ev.duration} {t('minutes')}</td>
                       <td>
                         <div className="regions-wrap">
-                          {ev.regions.slice(0, 3).map(r => (
-                            <span key={r} className="region-chip">{regionNames[r] || r}</span>
-                          ))}
-                          {ev.regions.length > 3 && (
-                            <span className="region-chip">+{ev.regions.length - 3}</span>
-                          )}
+                          {(ev as AlarmEvent & { regionLabel?: string }).regionLabel
+                            || regionNames[ev.regions[0]]
+                            || ev.regions[0]}
                         </div>
                       </td>
                       <td><span className="threat-pill missiles">{m?.total ?? 0}</span></td>

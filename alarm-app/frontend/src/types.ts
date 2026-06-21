@@ -1,3 +1,7 @@
+export interface MapThreat {
+  slug: string;
+  type: string;
+}
 export type Theme = 'dark' | 'light';
 export type Language = 'uk' | 'en';
 export type Tab = 'dashboard' | 'analysis' | 'safety';
@@ -9,6 +13,8 @@ export interface Region {
   nameUk: string;
   nameEn: string;
   status: AlarmStatus;
+  /** IoT code from alerts.in.ua: A=full, P=partial, N=clear */
+  level?: 'A' | 'P' | 'N';
 }
 
 export interface ThreatData {

@@ -10,10 +10,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from alerts_service import get_alerts_service
 from config import get_settings
-from data_loader import fetch_alerts
 from database import fetch_rows
-from regions_data import build_regions
 
 def _resolve_shelters_path() -> Path | None:
     settings = get_settings()
@@ -67,20 +66,11 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 def _get_live_regions() -> tuple[List[Dict[str, str]], str]:
     """Return (regions, source_label)."""
-    settings = get_settings()
-
-    if settings.alerts_api_key and not settings.alerts_api_key.startswith("your-"):
-        try:
-            raw = fetch_alerts()
-            active_ids = {
-                str(r.get("location_uid") or r.get("region_id", ""))
-                for r in raw
-            }
-            return build_regions(active_ids), "alerts.in.ua (live)"
-        except RuntimeError:
-            pass
-
-    return build_regions(use_mock=True), "app dashboard (demo data)"
+    svc = get_alerts_service()
+    payload = svc.get_regions_payload()
+    if payload.get("source") == "live":
+        return payload["regions"], "alerts.in.ua (live)"
+    return payload["regions"], "app dashboard (demo data)"
 
 
 def _format_alarm_section() -> str:
@@ -109,19 +99,16 @@ def _format_alarm_section() -> str:
     lines.append(f"🟢 Без тривоги: {clear_count} областей")
 
     # Raw alert details when live API available
-    settings = get_settings()
-    if settings.alerts_api_key and not settings.alerts_api_key.startswith("your-"):
-        try:
-            raw = fetch_alerts()
-            if raw:
-                lines.append("\nДеталі активних тривог:")
-                for item in raw[:20]:
-                    title = item.get("location_title") or item.get("region", "?")
-                    atype = item.get("alert_type") or item.get("threat_type") or "тривога"
-                    started = item.get("started_at") or item.get("start_time") or "?"
-                    lines.append(f"  • {title} — {atype}, початок: {started}")
-        except RuntimeError:
-            pass
+    svc = get_alerts_service()
+    if svc.get_source() == "live":
+        raw = svc.get_alerts()
+        if raw:
+            lines.append("\nДеталі активних тривог:")
+            for item in raw[:20]:
+                title = item.get("location_title") or item.get("region", "?")
+                atype = item.get("alert_type") or item.get("threat_type") or "тривога"
+                started = item.get("started_at") or item.get("start_time") or "?"
+                lines.append(f"  • {title} — {atype}, початок: {started}")
 
     return "\n".join(lines)
 
