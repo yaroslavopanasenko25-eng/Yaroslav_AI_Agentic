@@ -1,0 +1,22 @@
+<button type="button" class="ai-fab" id="ai-fab" aria-label="{{ t('aiAssistant') }}">
+  <div class="ai-fab-inner">⚡</div>
+</button>
+<div class="ai-window glass-card" id="ai-window" hidden>
+  <div class="ai-header">
+    <div class="ai-header-title">
+      <div class="ai-avatar-sm">⚡</div>
+      <div>
+        <div class="ai-name">{{ t('aiAssistant') }}</div>
+        <div class="ai-status" id="ai-dispatch-status">Online</div>
+      </div>
+    </div>
+    <button type="button" class="ai-close-btn" id="ai-close">✕</button>
+  </div>
+  <div class="ai-dispatch-bar" id="ai-dispatch-bar" hidden></div>
+  <div class="ai-quick-actions" id="ai-quick-actions"></div>
+  <div class="ai-messages" id="ai-messages"></div>
+  <div class="ai-input-row">
+    <textarea class="ai-input" id="ai-input" rows="1" placeholder="{{ t('typeMessage') }}"></textarea>
+    <button type="button" class="ai-send-btn" id="ai-send">{{ t('send') }}</button>
+  </div>
+</div>

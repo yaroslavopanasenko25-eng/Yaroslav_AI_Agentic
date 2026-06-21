@@ -1,0 +1,60 @@
+<div class="settings-backdrop" id="settings-backdrop"></div>
+<div class="settings-sheet" id="settings-sheet" role="dialog">
+  <div class="settings-handle"></div>
+  <div class="settings-sheet-content">
+    <div class="settings-sheet-header">
+      <span class="settings-sheet-title">{{ t('settings') }}</span>
+      <button type="button" class="settings-close-btn" id="settings-close">✕</button>
+    </div>
+    <div class="settings-sheet-body">
+      <div class="settings-group-label">{{ t('appearance') }}</div>
+      <div class="glass-card settings-group">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">{{ t('theme') }}</div>
+            <div class="settings-row-desc">{{ t('theme_desc') }}</div>
+          </div>
+          <div class="theme-selector">
+            <button type="button" class="theme-btn dark-btn" data-theme="dark">🌙</button>
+            <button type="button" class="theme-btn light-btn" data-theme="light">☀️</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-group-label">{{ t('language') }}</div>
+      <div class="glass-card settings-group">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">{{ t('language') }}</div>
+            <div class="settings-row-desc">{{ t('lang_desc') }}</div>
+          </div>
+          <div class="lang-selector">
+            <a href="?lang=uk" class="lang-btn{% if lang == 'uk' %} active{% endif %}">🇺🇦 UA</a>
+            <a href="?lang=en" class="lang-btn{% if lang == 'en' %} active{% endif %}">🇬🇧 EN</a>
+          </div>
+        </div>
+      </div>
+      <div class="settings-group-label">{{ t('accessibility') }}</div>
+      <div class="glass-card settings-group">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">{{ t('dyslexiaMode') }}</div>
+            <div class="settings-row-desc">{{ t('dyslexia_desc') }}</div>
+          </div>
+          <label class="ios-toggle">
+            <input type="checkbox" id="dyslexia-toggle" />
+            <span class="ios-toggle-track"></span>
+            <span class="ios-toggle-thumb"></span>
+          </label>
+        </div>
+      </div>
+      <div class="settings-group-label">{{ t('about') }}</div>
+      <div class="glass-card settings-group">
+        <div class="settings-row"><div><div class="settings-row-label">GuardianEye</div><div class="settings-row-desc">v1.0.0 · Python FastAPI</div></div></div>
+        <div class="settings-row" style="border-bottom:none">
+          <div><div class="settings-row-label">{{ t('emergency_numbers') }}</div>
+          <div class="settings-row-desc">101 · 102 · 103 · <strong>112</strong></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

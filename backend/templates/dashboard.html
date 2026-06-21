@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard-fullpage">
+  <div class="dashboard-map-card dashboard-embed-card">
+    <iframe src="{{ map_url }}" title="alerts.in.ua" class="alerts-in-ua-iframe" allow="fullscreen"></iframe>
+    <a class="alerts-in-ua-link" href="{{ map_url }}" target="_blank" rel="noopener">alerts.in.ua ↗</a>
+  </div>
+</div>
+{% endblock %}

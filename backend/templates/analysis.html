@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page analysis-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">{{ t('analysis') }}</h1>
+      <div id="analysis-status" style="font-size:12px;margin-top:4px;color:var(--text-secondary)"></div>
+    </div>
+    <div class="period-filter" id="period-filter">
+      {% for p in periods %}
+      <button type="button" class="period-btn{% if p == '14d' %} active{% endif %}" data-period="{{ p }}">
+        {{ period_labels[p].btn }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% include "partials/live_stats.html" %}
+
+  <div class="analysis-grid">
+    <div class="glass-card chart-card">
+      <div class="section-title" id="bar-chart-title">{{ t('analysis') }}</div>
+      <div class="chart-inner"><canvas id="bar-chart" height="280"></canvas></div>
+    </div>
+    <div class="glass-card chart-card">
+      <div class="section-title">{% if lang == 'uk' %}Тривалість, регіони та загрози{% else %}Duration, Regions & Threats{% endif %}</div>
+      <div class="chart-inner"><canvas id="line-chart" height="280"></canvas></div>
+    </div>
+    <div class="glass-card full-width analysis-table-card">
+      <div class="section-title" id="table-title">{{ t('alarmHistory') }}</div>
+      <div class="alarm-table-wrap">
+        <table class="alarm-table">
+          <thead id="alarm-thead"></thead>
+          <tbody id="alarm-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => GuardianEye.initAnalysis());</script>
+{% endblock %}

@@ -17,10 +17,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from ai_service import chat as grok_chat
@@ -32,8 +34,10 @@ from config import get_settings
 from data_loader import fetch_alerts, run_ingestion, transform_alerts
 from database import fetch_rows
 from history_analytics import build_analysis_payload
+from mock_data import SAFETY_TIPS, generate_mock_history
 from war_history import get_war_monthly_chart, get_war_records, get_monthly_chart_since, refresh_war_snapshot, snapshot_age_seconds
 from kyiv_time import period_cutoff_utc, to_kyiv
+from web_routes import web
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -431,7 +435,11 @@ def legacy_safety_tips() -> Dict[str, Any]:
     return SAFETY_TIPS
 
 
-# ── Mount routers ─────────────────────────────────────────────────────────────
+# ── Mount routers & static UI (Python presentation tier) ─────────────────────
 
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+app.include_router(web)
 app.include_router(api)
 app.include_router(legacy)

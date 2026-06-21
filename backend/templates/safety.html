@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page safety-page">
+  <div class="safety-layout">
+    <div class="safety-tips-col">
+      <div class="safety-tips-header">
+        <h1 class="page-title">{{ t('safety') }}</h1>
+        <p class="page-subtitle">{{ t('safety_subtitle') }}</p>
+      </div>
+      {% for section, label in [('alarm', t('duringAlarm')), ('after', t('afterAlarm')), ('general', t('general'))] %}
+      <div class="glass-card tips-card">
+        <div class="tips-section-title">{{ label }}</div>
+        <div class="tips-list">
+          {% for tip in safety_tips[section] %}
+          <div class="tip-item">
+            <span class="tip-icon">{{ tip.icon }}</span>
+            <div>
+              <div class="tip-title">{% if lang == 'uk' %}{{ tip.titleUk }}{% else %}{{ tip.titleEn }}{% endif %}</div>
+              <div class="tip-desc">{% if lang == 'uk' %}{{ tip.descUk }}{% else %}{{ tip.descEn }}{% endif %}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="glass-card safety-map-col">
+      <div class="shelter-map-header">
+        <span>{% if lang == 'uk' %}Карта укриттів Києва{% else %}Kyiv shelter map{% endif %}</span>
+      </div>
+      <div id="shelter-map" style="height:520px;border-radius:12px;overflow:hidden"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => GuardianEye.initSafetyMap());</script>
+{% endblock %}

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ t('app_title') }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <div class="app-shell" id="app-shell" data-lang="{{ lang }}">
+    <nav class="sidebar">
+      <div class="sidebar-top">
+        <div class="logo-mark">
+          <svg viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="17" stroke="rgba(10,132,255,0.6)" stroke-width="1.5"/><path d="M18 8 L26 26 L10 26 Z" fill="none" stroke="#0A84FF" stroke-width="2"/><circle cx="18" cy="22" r="1.5" fill="#0A84FF"/></svg>
+        </div>
+        <a href="/" class="nav-btn{% if active_tab == 'dashboard' %} active{% endif %}" title="{{ t('dashboard') }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </a>
+        <a href="/analysis" class="nav-btn{% if active_tab == 'analysis' %} active{% endif %}" title="{{ t('analysis') }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </a>
+        <a href="/safety" class="nav-btn{% if active_tab == 'safety' %} active{% endif %}" title="{{ t('safety') }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </a>
+      </div>
+      <div class="sidebar-bottom">
+        <button type="button" class="nav-btn" id="settings-open" title="{{ t('settings') }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </nav>
+
+    <main class="content-area">
+      {% block content %}{% endblock %}
+    </main>
+
+    {% include "partials/ai_chat.html" %}
+    {% include "partials/settings.html" %}
+  </div>
+
+  <script>
+    window.GUARDIANEYE = {
+      lang: {{ lang|tojson }},
+      regions: {{ regions|tojson }},
+      periodLabels: {{ period_labels|tojson }},
+      i18n: {
+        oblastsAlarm: {{ t('oblasts_alarm')|tojson }},
+        avgDuration: {{ t('avg_duration')|tojson }},
+        dangerLevel: {{ t('danger_level')|tojson }},
+        aiAssistant: {{ t('aiAssistant')|tojson }},
+        typeMessage: {{ t('typeMessage')|tojson }},
+        send: {{ t('send')|tojson }},
+        close: {{ t('close')|tojson }},
+      }
+    };
+  </script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/static/js/guardianeye.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

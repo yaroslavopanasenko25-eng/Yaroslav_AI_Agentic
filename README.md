@@ -12,7 +12,30 @@ The platform mission is to improve operational awareness by analyzing alert time
 
 ---
 
-## Project Overview
+## Quick Start (Python — основний спосіб запуску)
+
+Згідно з вимогами проєкту, **весь застосунок працює через Python (FastAPI)**:
+
+```powershell
+cd backend
+pip install -r requirements.txt
+python -m uvicorn main:app --host 127.0.0.1 --port 8080
+```
+
+Відкрийте в браузері: **http://127.0.0.1:8080**
+
+| URL | Сторінка |
+|-----|----------|
+| `/` | Карта тривог (Dashboard) |
+| `/analysis` | Аналіз, графіки, RAG-диспетчер |
+| `/safety` | Безпека та карта укриттів |
+| `/api/v1/...` | REST API |
+
+**Стек:** Python 3.11+ · FastAPI · Jinja2 · pandas · Grok API · alerts.in.ua  
+
+Папка `alarm-app/frontend/` (React) — застарілий UI; для здачі використовуйте Python-версію вище.
+
+---
 
 GuardianEye enables analysts and decision-support teams to:
 

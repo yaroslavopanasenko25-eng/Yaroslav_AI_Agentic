@@ -1,0 +1,30 @@
+<div class="live-stats-wrap" id="live-stats">
+  <div class="stat-grid live-stats-grid">
+    <div class="glass-card stat-card">
+      <div class="stat-icon red">🗺️</div>
+      <div class="stat-value" id="stat-oblasts">—</div>
+      <div class="stat-label">{{ t('oblasts_alarm') }}<span id="stat-oblasts-detail" style="display:block;font-size:10px;color:var(--text-secondary);margin-top:4px"></span></div>
+    </div>
+    <div class="glass-card stat-card">
+      <div class="stat-icon orange">📊</div>
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label" id="stat-total-label">{{ t('alerts_period') }}</div>
+    </div>
+    <div class="glass-card stat-card">
+      <div class="stat-icon blue">⏱</div>
+      <div class="stat-value" id="stat-avg">—</div>
+      <div class="stat-label">{{ t('avg_duration') }}</div>
+    </div>
+    <div class="glass-card stat-card stat-card-region">
+      <div class="stat-icon green" id="stat-danger-icon">⚠️</div>
+      <div class="stat-value stat-value-danger" id="stat-danger">—</div>
+      <div class="stat-label">{{ t('danger_level') }}</div>
+      <select class="region-select" id="region-select" aria-label="Oblast">
+        {% for r in regions %}
+        <option value="{{ r.id }}">{% if lang == 'uk' %}{{ r.nameUk }}{% else %}{{ r.nameEn }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="live-stats-meta" id="live-stats-meta" style="display:none">● alerts.in.ua · IoT</div>
+</div>
