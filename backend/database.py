@@ -13,7 +13,7 @@ def get_supabase_client() -> Client:
     """Return an authenticated Supabase client built from application settings."""
     settings = get_settings()
 
-    if "your-project" in settings.supabase_url or not settings.supabase_key:
+    if not settings.is_supabase_configured():
         raise RuntimeError(
             "Supabase is not configured. "
             "Set SUPABASE_URL and SUPABASE_KEY in your .env file."

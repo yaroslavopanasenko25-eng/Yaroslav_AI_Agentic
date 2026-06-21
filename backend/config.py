@@ -8,12 +8,34 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from shutil import copyfile
 from typing import List
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 _ENV_FILE = Path(__file__).resolve().parent / ".env"
+_ENV_EXAMPLE = Path(__file__).resolve().parent / ".env.example"
+
+# Placeholders used when cloning the repo without real API keys.
+_DEMO_SUPABASE_URL = "https://demo-not-configured.supabase.co"
+_DEMO_SUPABASE_KEY = "demo-not-configured"
+_DEMO_GROK_KEY = "demo-not-configured"
+_DEMO_ALERTS_KEY = "your-alerts-in-ua-token"
+
+
+def _ensure_env_file() -> None:
+    """Copy .env.example → .env on first run so `git clone` works out of the box."""
+    if _ENV_FILE.exists() or not _ENV_EXAMPLE.exists():
+        return
+    copyfile(_ENV_EXAMPLE, _ENV_FILE)
+    print(
+        "[GuardianEye] Created backend/.env from .env.example — demo mode.\n"
+        "              Add real API keys later for live alerts and Grok AI."
+    )
+
+
+_ensure_env_file()
 
 
 class Settings(BaseSettings):
@@ -27,13 +49,19 @@ class Settings(BaseSettings):
     )
 
     # в”Ђв”Ђ Supabase в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-    supabase_url: str = Field(..., description="Supabase project URL")
-    supabase_key: str = Field(..., description="Supabase service-role or anon key")
+    supabase_url: str = Field(
+        default=_DEMO_SUPABASE_URL,
+        description="Supabase project URL",
+    )
+    supabase_key: str = Field(
+        default=_DEMO_SUPABASE_KEY,
+        description="Supabase service-role or anon key",
+    )
 
     # в”Ђв”Ђ Grok (xAI) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     # Accepts both GROK_* and XAI_* env names (xAI console uses XAI_ prefix).
     grok_api_key: str = Field(
-        ...,
+        default=_DEMO_GROK_KEY,
         validation_alias=AliasChoices("GROK_API_KEY", "XAI_API_KEY"),
         description="xAI Grok API key",
     )
@@ -54,13 +82,16 @@ class Settings(BaseSettings):
     )
 
     # в”Ђв”Ђ alerts.in.ua в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-    alerts_api_key: str = Field(..., description="alerts.in.ua API token (Authorization: Bearer)")
+    alerts_api_key: str = Field(
+        default=_DEMO_ALERTS_KEY,
+        description="alerts.in.ua API token (Authorization: Bearer)",
+    )
     alerts_api_url: str = Field(
         default="https://api.alerts.in.ua/v1/alerts/active.json",
         description="alerts.in.ua active-alerts endpoint",
     )
 
-    # в”Ђв”Ђ CORS в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+    # ── CORS / network ────────────────────────────────────────────────────────────
     allowed_origins: List[str] = Field(
         default=[
             "http://localhost:3000",
@@ -68,11 +99,30 @@ class Settings(BaseSettings):
             "http://127.0.0.1:5173",
             "http://localhost:5175",
             "http://127.0.0.1:5175",
+            "http://localhost:8080",
+            "http://127.0.0.1:8080",
         ],
         description="Comma-separated list of allowed CORS origins",
     )
-
-    # в”Ђв”Ђ General в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+    cors_allow_lan: bool = Field(
+        default=True,
+        description="Allow browsers from private LAN IPs (192.168.x.x, 10.x.x.x, etc.)",
+    )
+    cors_origin_regex: str = Field(
+        default=(
+            r"https?://("
+            r"localhost|127\.0\.0\.1"
+            r"|192\.168\.\d{1,3}\.\d{1,3}"
+            r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+            r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+            r")(?::\d+)?"
+        ),
+        description="Regex for extra CORS origins (phones/tablets on same Wi‑Fi)",
+    )
+    host: str = Field(
+        default="0.0.0.0",
+        description="Bind address — 0.0.0.0 allows other devices on the LAN",
+    )
     debug: bool = Field(default=False, description="Enable debug logging")
     port: int = Field(default=8080, ge=1, le=65535, description="Server port (Docker/DO)")
     shelters_json_path: str | None = Field(
@@ -105,9 +155,30 @@ class Settings(BaseSettings):
     @field_validator("supabase_url")
     @classmethod
     def _validate_supabase_url(cls, value: str) -> str:
-        if not value.startswith("https://"):
-            raise ValueError("SUPABASE_URL must start with https://")
-        return value.rstrip("/")
+        if value.startswith("https://"):
+            return value.rstrip("/")
+        if value.startswith("http://localhost") or value.startswith("http://127.0.0.1"):
+            return value.rstrip("/")
+        raise ValueError("SUPABASE_URL must start with https:// (or http://localhost for local dev)")
+
+    def is_supabase_configured(self) -> bool:
+        return (
+            bool(self.supabase_key)
+            and self.supabase_key not in (_DEMO_SUPABASE_KEY, "your-supabase-key", "<service-role-key>")
+            and "your-project" not in self.supabase_url
+            and "demo-not-configured" not in self.supabase_url
+        )
+
+    def is_grok_configured(self) -> bool:
+        key = self.grok_api_key or ""
+        return bool(key) and key not in (_DEMO_GROK_KEY, "your-grok-api-key") and not key.startswith("xai-<")
+
+    def is_alerts_configured(self) -> bool:
+        key = self.alerts_api_key or ""
+        return bool(key) and "your-alerts" not in key and "<your" not in key
+
+    def is_demo_mode(self) -> bool:
+        return not (self.is_alerts_configured() or self.is_grok_configured() or self.is_supabase_configured())
 
     @field_validator("grok_api_url")
     @classmethod

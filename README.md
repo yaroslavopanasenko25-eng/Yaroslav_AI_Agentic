@@ -19,10 +19,19 @@ The platform mission is to improve operational awareness by analyzing alert time
 ```powershell
 cd backend
 pip install -r requirements.txt
-python -m uvicorn main:app --host 127.0.0.1 --port 8080
+python run_server.py
 ```
 
-Відкрийте в браузері: **http://127.0.0.1:8080**
+Сервер слухає **0.0.0.0:8080** — доступний з інших пристроїв у тій самій Wi‑Fi мережі.
+
+| Де відкривати | URL |
+|---------------|-----|
+| На цьому ПК | **http://127.0.0.1:8080** |
+| Телефон / інший ПК у Wi‑Fi | **http://\<IP-вашого-ПК\>:8080** (IP див. `ipconfig`) |
+
+Або з кореня репозиторію: **`start.bat`**
+
+**Якщо інші пристрої не підключаються:** дозвольте вхід на порт 8080 у брандмауері Windows (Private network).
 
 | URL | Сторінка |
 |-----|----------|
@@ -34,6 +43,57 @@ python -m uvicorn main:app --host 127.0.0.1 --port 8080
 **Стек:** Python 3.11+ · FastAPI · Jinja2 · pandas · Grok API · alerts.in.ua  
 
 Папка `alarm-app/frontend/` (React) — застарілий UI; для здачі використовуйте Python-версію вище.
+
+---
+
+## Клонування з GitHub — API одразу працює
+
+Після `git clone` не потрібно налаштовувати ключі, щоб **протестувати API**:
+
+```powershell
+git clone <your-repo-url>
+cd Yaroslav_AI_Agentic/backend
+pip install -r requirements.txt
+python run_server.py
+```
+
+При першому запуску створиться `backend/.env` з демо-значеннями. Відкрийте:
+
+| Що | URL |
+|----|-----|
+| Swagger (всі ендпоінти) | **http://127.0.0.1:8080/docs** |
+| Список API | **http://127.0.0.1:8080/api/v1** |
+| Health + статус ключів | **http://127.0.0.1:8080/api/v1/health** |
+
+### Приклади запитів (curl / PowerShell)
+
+```powershell
+# Статус регіонів (демо-карта без ключа)
+curl http://127.0.0.1:8080/api/v1/regions
+
+# Аналітика за 14 днів
+curl "http://127.0.0.1:8080/api/v1/alarms/analysis?period=14d"
+
+# Диспетчер (без Grok — rule-based)
+curl "http://127.0.0.1:8080/api/v1/ai/dispatch?region_id=kyiv-city"
+
+# AI-чат (демо-відповідь без GROK_API_KEY)
+curl -X POST http://127.0.0.1:8080/api/v1/ai/chat ^
+  -H "Content-Type: application/json" ^
+  -d "{\"message\":\"Де найближче укриття?\",\"region_id\":\"kyiv-city\"}"
+```
+
+### Живі дані (опційно)
+
+Відредагуйте `backend/.env`:
+
+| Змінна | Де взяти |
+|--------|----------|
+| `ALERTS_API_KEY` | [alerts.in.ua](https://alerts.in.ua/) |
+| `GROK_API_KEY` | [console.x.ai](https://console.x.ai/) |
+| `SUPABASE_URL` / `SUPABASE_KEY` | [supabase.com](https://supabase.com/) |
+
+Після зміни перезапустіть сервер. Перевірка: `GET /api/v1/health` → `"alerts_configured": true`.
 
 ---
 

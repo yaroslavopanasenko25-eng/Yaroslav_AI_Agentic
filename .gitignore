@@ -1,5 +1,6 @@
 # ── Secrets ───────────────────────────────────────────────────────────────────
 .env
+backend/.env
 .env.local
 .env.*.local
 
@@ -38,8 +39,6 @@ Thumbs.db
 *.cache/
 .parcel-cache/
 .eslintcache/
-.env.production
-!.env.production.example
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 .coverage

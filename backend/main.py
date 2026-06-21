@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import socket
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -46,6 +47,16 @@ logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _lan_ipv4() -> str | None:
+    """Best-effort local IPv4 for logging (same Wi‑Fi / LAN access)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background alerts.in.ua poller on startup."""
@@ -54,6 +65,14 @@ async def lifespan(app: FastAPI):
         "Alerts poller started (interval=%ds)",
         get_settings().alerts_poll_interval_seconds,
     )
+    lan = _lan_ipv4()
+    if lan:
+        logger.info(
+            "LAN access: http://%s:%d  (share this URL on the same Wi‑Fi)",
+            lan,
+            settings.port,
+        )
+    logger.info("Local access: http://127.0.0.1:%d", settings.port)
 
     async def _war_refresh_loop() -> None:
         while True:
@@ -92,6 +111,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
+    allow_origin_regex=settings.cors_origin_regex if settings.cors_allow_lan else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -142,13 +162,47 @@ def versioned_health() -> Dict[str, Any]:
         "status": "ok",
         "service": "guardianeye-backend",
         "version": "1.0.0",
-        "supabase_configured": "your-project" not in cfg.supabase_url,
-        "grok_configured": bool(cfg.grok_api_key)
-        and not cfg.grok_api_key.startswith("your-")
-        and cfg.grok_api_key.startswith("xai-"),
-        "alerts_configured": bool(cfg.alerts_api_key) and "your-alerts" not in cfg.alerts_api_key,
+        "demo_mode": cfg.is_demo_mode(),
+        "docs_url": "/docs",
+        "setup": {
+            "env_file": "backend/.env (auto-created from .env.example on first run)",
+            "alerts_key": "https://alerts.in.ua/",
+            "grok_key": "https://console.x.ai/",
+            "supabase": "https://supabase.com/",
+        },
+        "supabase_configured": cfg.is_supabase_configured(),
+        "grok_configured": cfg.is_grok_configured(),
+        "alerts_configured": cfg.is_alerts_configured(),
         "alerts_source": svc.get_source(),
         "active_alerts_count": len(svc.get_alerts()),
+    }
+
+
+@api.get("", tags=["v1"])
+def api_index() -> Dict[str, Any]:
+    """Quick reference for API consumers after cloning the repo."""
+    cfg = get_settings()
+    base = f"http://127.0.0.1:{cfg.port}/api/v1"
+    return {
+        "service": "GuardianEye API",
+        "demo_mode": cfg.is_demo_mode(),
+        "message": (
+            "API works out of the box in demo mode. "
+            "Add keys to backend/.env for live alerts.in.ua and Grok AI."
+        ),
+        "docs": "/docs",
+        "endpoints": {
+            "health": f"{base}/health",
+            "regions": f"{base}/regions",
+            "alarms_history": f"{base}/alarms/history",
+            "alarms_analysis": f"{base}/alarms/analysis?period=14d",
+            "alarms_active": f"{base}/alarms/active",
+            "ai_dispatch": f"{base}/ai/dispatch?region_id=kyiv-city",
+            "ai_chat": f"POST {base}/ai/chat",
+            "ai_forecast": f"POST {base}/ai/forecast",
+            "ingest": f"POST {base}/ingest",
+        },
+        "legacy_prefix": "/api (same handlers, no /v1)",
     }
 
 
@@ -188,8 +242,7 @@ def get_alarm_history(limit: int = 100) -> Dict[str, Any]:
 
 
 def _alerts_api_configured() -> bool:
-    cfg = get_settings()
-    return bool(cfg.alerts_api_key) and "your-alerts" not in cfg.alerts_api_key
+    return get_settings().is_alerts_configured()
 
 
 def _load_analysis_records(limit: int = 5000, period: str = "14d") -> tuple[List[Dict[str, Any]], str]:
@@ -273,12 +326,33 @@ def _load_analysis_records(limit: int = 5000, period: str = "14d") -> tuple[List
 @api.get("/alarms/active", tags=["alarms"])
 def get_active_alarms() -> Dict[str, Any]:
     """Return currently active alerts from alerts.in.ua (same source as the dashboard)."""
+    from history_analytics import _to_alarm_event
+
     if not _alerts_api_configured():
-        raise HTTPException(status_code=503, detail="alerts.in.ua API key not configured")
+        payload = get_alerts_service().get_regions_payload()
+        demo_alerts = [
+            {
+                "id": f"demo-{r['id']}",
+                "region_slug": r["id"],
+                "region": r.get("nameUk") or r.get("nameEn"),
+                "location_title": r.get("nameUk") or r.get("nameEn"),
+                "alert_type": "air_raid",
+                "start_time": None,
+                "is_active": True,
+            }
+            for r in payload.get("regions", [])
+            if r.get("status") in ("active", "warning")
+        ]
+        return {
+            "alerts": [_to_alarm_event(r) for r in demo_alerts],
+            "count": len(demo_alerts),
+            "source": "demo",
+            "message": "Demo layout — set ALERTS_API_KEY in backend/.env for live alerts.in.ua data.",
+        }
+
     records = transform_alerts(fetch_alerts())
     active = [r for r in records if r.get("is_active")]
     active.sort(key=lambda r: r.get("start_time") or "", reverse=True)
-    from history_analytics import _to_alarm_event
 
     return {
         "alerts": [_to_alarm_event(r) for r in active],
@@ -343,6 +417,11 @@ def get_alarm_analysis(
 @api.post("/ingest", tags=["alarms"])
 def trigger_ingestion() -> Dict[str, Any]:
     """Manually trigger an alerts.in.ua → store/Supabase ingestion run."""
+    if not _alerts_api_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="ALERTS_API_KEY not configured. Get a token at https://alerts.in.ua/ and add it to backend/.env",
+        )
     try:
         count = run_ingestion()
         return {"status": "ok", "records_ingested": count}

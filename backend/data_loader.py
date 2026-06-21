@@ -83,7 +83,7 @@ def run_ingestion() -> int:
     upsert_alerts(records)
 
     settings = get_settings()
-    if "your-project" not in settings.supabase_url:
+    if settings.is_supabase_configured():
         upsert_rows("alerts", records)
 
     return len(records)

@@ -99,8 +99,7 @@ class AlertsService:
     # ── Upstream fetch ────────────────────────────────────────────────────────
 
     def _is_configured(self) -> bool:
-        key = get_settings().alerts_api_key
-        return bool(key) and "your-alerts" not in key
+        return get_settings().is_alerts_configured()
 
     def _auth_headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         headers = {"Authorization": f"Bearer {get_settings().alerts_api_key}"}
